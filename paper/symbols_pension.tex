@@ -1,0 +1,102 @@
+\newcommand{\Set}[2]{\left\{ #1 \;\middle\vert\; #2 \right\}}
+
+\newcommand{\pth}[1]{\mleft(#1\mright)}%
+
+\renewcommand{\P}{\operatorname{P}}
+\newcommand{\E}{\operatorname{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\diam}[1]{\operatorname{diam}\mleft(#1\mright)}
+\newcommand{\osc}[2]{\operatorname{osc}\mleft(#1,\, #2\mright)}
+\newcommand{\supp}[1]{\operatorname{supp}\mleft(#1\mright)}
+\newcommand{\indicator}{\mathbf{1}}
+\newcommand{\argmin}{\operatorname{argmin}}
+\newcommand{\argmax}{\operatorname{argmax}}
+\newcommand{\deq}{\stackrel{d}{=}}
+
+\DeclareMathOperator*{\mtimes}{\text{\raisebox{0.25ex}{\scalebox{0.8}{$\bigtimes$}}}}
+\DeclareMathOperator*{\motimes}{\text{\raisebox{0.25ex}{\scalebox{0.8}{$\bigotimes$}}}}
+
+\newcommand{\Ex}[1]{\E\mleft[ #1 \mright]}
+
+\newcommand{\ceil}[1]{\mleft\lceil {#1} \mright\rceil}
+\newcommand{\floor}[1]{\mleft\lfloor {#1} \mright\rfloor}
+\newcommand{\sgn}{\operatorname{sgn}}
+\newcommand{\card}{\operatorname{card}}
+
+\newcommand{\brc}[1]{\left\{ {#1} \right\}}
+\newcommand{\sbrc}[1]{\left[ {#1} \right]}
+\newcommand{\set}[1]{\brc{#1}}%
+
+\newcommand{\abs}[1]{\left\lvert {#1} \right\rvert}%
+\newcommand{\norm}[1]{\left\lVert {#1} \right\rVert}
+\newcommand{\spanby}{\operatorname{span}}
+\newcommand{\esssup}{\operatorname{ess\,sup}}
+\newcommand{\inp}[2]{\left\langle {#1},\, {#2} \right\rangle}
+
+\newcommand{\mto}{\overset{m}{\to}}
+\newcommand{\wto}{\overset{w}{\to}}
+\newcommand{\wstarto}{\overset{w^*}{\to}}
+\newcommand{\asto}{\overset{a.s.}{\to}}
+\newcommand{\pto}{\overset{p}{\to}}
+\newcommand{\dto}{\overset{d}{\to}}
+\newcommand{\dsubset}{\overset{d}{\subset}}
+
+
+\newcommand{\ds}{\displaystyle}%
+
+\newcommand{\R}{\mathbb{R}}%
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\A}{\mathcal{A}}
+\newcommand{\B}{\mathcal{B}}
+\newcommand{\T}{\mathcal{T}}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\V}{\mathcal{V}}
+\renewcommand{\L}{\mathcal{L}}
+\renewcommand{\S}{\mathcal{S}}
+\newcommand{\I}{\mathcal{I}}
+\renewcommand{\H}{\mathcal{H}}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\U}{\mathcal{U}}
+\newcommand{\G}{\mathcal{G}}
+\newcommand{\J}{\mathcal{J}}
+
+\newcommand{\one}{\mathbf{1}}
+
+\newcommand{\exist}{\exists\:}
+\newcommand{\forany}{\forall\:}
+\renewcommand{\ae}{\quad\text{a.e.}}
+\newcommand{\Res}{\operatorname{Res}}
+\newcommand{\cl}{\operatorname{cl}}
+
+\newcommand{\iidsim}{\overset{iid}{\sim}}
+\newcommand{\Poisson}{\text{Poisson}}
+\newcommand{\Ber}{\text{Ber}}
+\newcommand{\Exp}{\text{Exp}}
+
+\newcommand{\restrict}[1]{\left.\hspace{-0.2em}\right|_{#1}}
+\newcommand{\eval}[3]{\left.{#1}\right|_{#2}^{#3}}
+
+% derivatives
+\makeatletter
+\renewcommand\d[1]{\mspace{6mu}\mathrm{d}#1\@ifnextchar\d{\mspace{-3mu}}{}}
+\makeatother
+\def\at{
+  \left.
+  \vphantom{\int}
+  \right|
+}
+
+\newcommand{\od}[2]{\frac{d{#1}}{d{#2}}}
+\newcommand{\odd}[2]{\frac{d^2{#1}}{d{#2}^2}}
+\newcommand{\pd}[2]{\frac{\partial{#1}}{\partial{#2}}}
+\newcommand{\pdd}[2]{\frac{\partial^2{#1}}{\partial{#2}^2}}
+\newcommand{\pdpd}[3]{\frac{\partial^2{#1}}{\partial{#2}\partial{#3}}}
+
+\makeatletter
+\newcommand*{\rom}[1]{\expandafter\@slowromancap\romannumeral #1@}
+\makeatother
