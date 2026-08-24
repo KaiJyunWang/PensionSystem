@@ -6,8 +6,8 @@ using Statistics
 
 include("collocation_diff_matrix.jl")
 
-function model(; b = 0.00462, m = 0.058, T = 65, r = 0.121, p = 2.556, 
-    l = 20.61, τ = 0.125, y = 0.458, α = -12.0, β = 2.0, σ = 0.092, B_max = 20.0)
+function model(; b = 0.00462, m = 0.058, T = 65, r = 0.07, p = 2.556, 
+    l = 20.61, τ = 0.125, y = 0.458, α = -12.0, β = 2.0, σ = 0.092, B_max = 30.0)
     # find population growth rate 
     n = find_zero(n -> (-expm1(-n * T)) / n + exp(-n * T) / (n + m) - 1 / b, (-m+ 1e-8, -1e-8))
 
@@ -17,7 +17,7 @@ function model(; b = 0.00462, m = 0.058, T = 65, r = 0.121, p = 2.556,
     σB(B) = σ * B
     μQ(Q, V) = q(V) * b * exp(-n * T) - (m+n) * Q
 
-    Q_max = b * exp(-n * T) / (m + n)
+    Q_max = b * exp(-n * T) / (m + n) 
 
     return (; b, m, T, r, p, l, τ, y, n, α, β, σ, q, μB, σB, μQ, B_max, Q_max)
 end
@@ -25,7 +25,7 @@ end
 para = model()
 
 # solve the PDV of the pension
-function solve_pde(; tol = 1e-8, iterations = 200, para, ns = (60, 10))
+function solve_pde(; tol = 1e-8, iterations = 1000, para, ns = (50, 20))
     @unpack b, m, T, r, p, l, τ, y, n, α, β, σ, q, μB, σB, μQ, B_max, Q_max = para
 
     lbs = [0.0, 0.0]
@@ -46,6 +46,10 @@ function solve_pde(; tol = 1e-8, iterations = 200, para, ns = (60, 10))
 
     id_mat = Matrix(I, prod(ns.+1), prod(ns.+1))
 
+    rhs = ones(prod(size(V0)))
+    rhs[upper_B_bc_positions] .= 0.0
+    rhs[lower_B_bc_positions] .= 0.0
+
     iter = 1 
     rel_error = Inf
     while iter ≤ iterations && rel_error > tol
@@ -57,11 +61,8 @@ function solve_pde(; tol = 1e-8, iterations = 200, para, ns = (60, 10))
         A[upper_B_bc_positions, :] = DB[upper_B_bc_positions, :]
         A[lower_B_bc_positions, :] = id_mat[lower_B_bc_positions, :]
 
-        rhs = ones(prod(size(V0)))
-        rhs[upper_B_bc_positions] .= 0.0
-        rhs[lower_B_bc_positions] .= 0.0
         V = (A \ rhs) |> (x -> reshape(x, ns[1]+1, ns[2]+1)) 
-        # V[end, :] .= 0.0
+        V[end, :] .= 0.0
         rel_error = maximum(abs, V - V0)
         if iter % iterations == 0
             @printf "Iterations: %d \t Rel. Error: %.5g \n" iter rel_error
@@ -229,7 +230,7 @@ m = diff(log.(df.B[1:ext_finance_date_id-1])) |> mean
 v = diff(log.(df.B[1:ext_finance_date_id-1])) |> var
 
 σ0 = sqrt(v / Δ)
-r0 = 0.03
+r0 = 0.05
 α0 = -18.0
 β0 = 2.0
 θ0 = [log(r0), log(σ0), α0, log(β0)]
@@ -245,5 +246,5 @@ V_est = solve_pde(para = para_est, iterations = 1000)
 Q_grids = range(0.0, para.Q_max, 101)
 B_grids = range(0.0, para.B_max, 101)
 V_ests = [V_est(B, Q) for B in B_grids, Q in Q_grids]
-surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7)
-heatmap(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V")
+surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
+contourf(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", c=:thermal)

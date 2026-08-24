@@ -59,4 +59,11 @@ g = solution_wrapper(solve_volterra())
 
 ages = range(0, age_max, 200)
 
-(100, ages, g)
+begin
+    t_end = 100
+    plt = plot()
+    for t in 0:50:t_end
+        plot!(ages, g.(t, ages), label="", c=RGB(t/t_end, 0.2, 1-t/t_end))
+    end
+    plt
+end
