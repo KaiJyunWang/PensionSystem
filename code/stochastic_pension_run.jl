@@ -6,14 +6,14 @@ using Statistics
 
 include("collocation_diff_matrix.jl")
 
-function model(; b = 0.00462, m = 0.058, T = 65, r = 0.07, p = 2.556, 
-    l = 20.61, τ = 0.125, y = 0.458, α = -12.0, β = 2.0, σ = 0.092, B_max = 30.0)
+function model(; b = 0.00462, m = 0.058, T = 65, r = 0.03, p = 2.556, 
+    l = 20.61, τ = 0.125, y = 5.496, α = -12.0, β = 2.0, σ = 0.1, B_max = 5.0)
     # find population growth rate 
     n = find_zero(n -> (-expm1(-n * T)) / n + exp(-n * T) / (n + m) - 1 / b, (-m+ 1e-8, -1e-8))
 
     # auxilary functions
     q(V) = V == 0 ? logistic(-α / β) : logistic(-(α + l - p * max(V, 0)) / β)
-    μB(B, Q, V) = (r-n) * B + b * τ * y / n * (-expm1(-n * T)) - (1 - q(V)) * b * exp(-n * T) * l - p * Q
+    μB(B, Q, V) = (r-n) * B + b * τ * y / n * (exp(-n * 20)-exp(-n * T)) - (1 - q(V)) * b * exp(-n * T) * l - p * Q
     σB(B) = σ * B
     μQ(Q, V) = q(V) * b * exp(-n * T) - (m+n) * Q
 
@@ -25,7 +25,7 @@ end
 para = model()
 
 # solve the PDV of the pension
-function solve_pde(; tol = 1e-8, iterations = 1000, para, ns = (50, 20))
+function solve_pde(; tol = 1e-8, iterations = 1000, para, ns = (100, 20))
     @unpack b, m, T, r, p, l, τ, y, n, α, β, σ, q, μB, σB, μQ, B_max, Q_max = para
 
     lbs = [0.0, 0.0]
@@ -47,7 +47,7 @@ function solve_pde(; tol = 1e-8, iterations = 1000, para, ns = (50, 20))
     id_mat = Matrix(I, prod(ns.+1), prod(ns.+1))
 
     rhs = ones(prod(size(V0)))
-    rhs[upper_B_bc_positions] .= 0.0
+    rhs[upper_B_bc_positions] .= 0.0#1/(r+m)
     rhs[lower_B_bc_positions] .= 0.0
 
     iter = 1 
@@ -58,10 +58,12 @@ function solve_pde(; tol = 1e-8, iterations = 1000, para, ns = (50, 20))
         MσB = Diagonal(vec(σB.(Bs)))
         A = (r + m) * I - MμB * DB - MμQ * DQ - 0.5 * MσB * DB2
         # for boundary condition 
+        #A[upper_B_bc_positions, :] = id_mat[upper_B_bc_positions, :]
         A[upper_B_bc_positions, :] = DB[upper_B_bc_positions, :]
         A[lower_B_bc_positions, :] = id_mat[lower_B_bc_positions, :]
 
         V = (A \ rhs) |> (x -> reshape(x, ns[1]+1, ns[2]+1)) 
+        #V[1, :] .= 1/(r+m)
         V[end, :] .= 0.0
         rel_error = maximum(abs, V - V0)
         if iter % iterations == 0
@@ -85,7 +87,7 @@ Q_grids = range(0.0, para.Q_max, 101)
 B_grids = range(0.0, para.B_max, 101)
 Vs = [V(B, Q) for B in B_grids, Q in Q_grids]
 surface(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7)
-heatmap(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V")
+contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V")
 
 # simulation 
 # u = [B, Q]
@@ -112,7 +114,7 @@ cb = ContinuousCallback(
     save_positions = (true, true)
 )
 
-sde_prob = SDEProblem(drift!, diffusion!, [1.0, 0.0], (0.0, 15.0), para)
+sde_prob = SDEProblem(drift!, diffusion!, [0.03, 0.0], (0.0, 15.0), para)
 sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 568)
 
 # plot simulation
@@ -174,14 +176,14 @@ Q_path = getindex.(Xs, 2)
 
 # method of moments with Euler-Maruyama type approximation 
 function loss(θ; B_path = B_path, Q_path = Q_path, W = I, Δ = 1/12)
-    para = model(; r = exp(θ[1]), σ = exp(θ[2]), α = θ[3], β = exp(θ[4]))
+    para = model(; σ = exp(θ[1]), α = θ[2], β = exp(θ[3]))
     V = solve_pde(; para = para)
 
     q_targets = ((Q_path[2:end] - Q_path[1:end-1])/Δ + (para.m + para.n) * Q_path[1:end-1]) / (para.b * exp(-para.n * para.T))
     qs = [para.q(V(B, Q)) for (B, Q) in zip(B_path[1:end-1], Q_path[1:end-1])]
     σ_target = std((diff(B_path) - para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) * Δ) ./ (B_path[1:end-1] * sqrt(Δ)))
-    mean_μB_target = mean(diff(B_path) / Δ)
-    mean_μB = mean([para.μB(B, Q, V(B, Q)) for (B, Q) in zip(B_path[1:end-1], Q_path[1:end-1])])
+    mean_μB_target = mean(diff(B_path) ./ (B_path[1:end-1] * Δ))
+    mean_μB = mean([para.μB(B, Q, V(B, Q))/B for (B, Q) in zip(B_path[1:end-1], Q_path[1:end-1])])
 
     ms = vcat(qs - q_targets, para.σ - σ_target, mean_μB - mean_μB_target)
     return ms' * W * ms
@@ -226,21 +228,18 @@ end
 
 # initial guesses
 ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
-m = diff(log.(df.B[1:ext_finance_date_id-1])) |> mean
-v = diff(log.(df.B[1:ext_finance_date_id-1])) |> var
 
-σ0 = sqrt(v / Δ)
-r0 = 0.05
+σ0 = 0.1
 α0 = -18.0
 β0 = 2.0
-θ0 = [log(r0), log(σ0), α0, log(β0)]
+θ0 = [log(σ0), α0, log(β0)]
 
 optf = OptimizationFunction((θ, p) -> loss(θ; B_path = df.B[3:ext_finance_date_id-1], Q_path = df.Q[3:ext_finance_date_id-1]), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace=true)
-res = sol.u |> (x -> [exp(x[1]), exp(x[2]), x[3], exp(x[4])])
+res = sol.u |> (x -> [exp(x[1]), x[2], exp(x[3])])
 
-para_est = model(; r = res[1], σ = res[2], α = res[3], β = res[4])
+para_est = model(; σ = res[1], α = res[2], β = res[3])
 V_est = solve_pde(para = para_est, iterations = 1000)
 
 Q_grids = range(0.0, para.Q_max, 101)
@@ -248,3 +247,35 @@ B_grids = range(0.0, para.B_max, 101)
 V_ests = [V_est(B, Q) for B in B_grids, Q in Q_grids]
 surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
 contourf(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", c=:thermal)
+
+# simulation on the estimated parameters
+function drift_est!(du, u, p, t)
+    @unpack μB, μQ = p
+
+    du[1] = μB(u[1], u[2], V_est(u[1], u[2]))
+    du[2] = μQ(u[2], V_est(u[1], u[2]))
+end
+
+function diffusion_est!(du, u, p, t)
+    @unpack σB = p
+    du[1] = σB(u[1])
+    du[2] = 0.0
+end
+
+sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[3], df.Q[3]], (0.0, 15.0), para_est)
+sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8)
+
+# plot simulation
+begin
+    times = 0.0:1/12:(length(df.B[3:end])-1)/12
+    p1 = plot(times, df.B[3:end], label = "data", title="B", c=:brown)
+    p2 = plot(times, df.Q[3:end], label = "data", title="Q", c=:brown)
+    ts = range(0.0, sim.t[end], 300)
+    #sim_Vs = map(u -> V(u...), sim.(ts))
+    plot!(p1, sim, idxs = 1, title = "B", xlabel = "t", label = "sim")
+    plot!(p1, sim.t, zeros(length(sim.t)), label = "", c=:black, ls=:dash)
+    plot!(p2, sim, idxs = 2, title = "Q", xlabel = "t", label = "sim")
+    #p3 = plot(ts, para.q.(sim_Vs), title = "q", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
+    #p4 = plot(ts, sim_Vs, title = "V", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
+    plt = plot(p1, p2, layout = (2, 1), size = (600, 1000))
+end
