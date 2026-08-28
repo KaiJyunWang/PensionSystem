@@ -2,7 +2,7 @@
 \input{prefix_pension.tex}%
 \input{symbols_pension.tex}
 
-\title{Pension System Reform}
+\title{Pension Run}
 
 \author{Kai-Jyun Wang}
 
@@ -23,216 +23,189 @@ TBD.
 \end{itemize}
 
 \section{Model}
-Time is continuous. 
+We consider a continuous time model with an infinite horizon. There is a continuum 
+of individuals choosing between the lumpsum and the monthly pension schemes. The 
+pension fund is running by the government with the return and the volatility being 
+exogenously given. When the pension system goes bankrupt, the recipients cannot 
+receive any more pensions from then on. 
 
 \subsection{Population}
 Let $b(s), m(s)$ be the fertility rate and the mortality rate respectively. 
-Let $g(t,s)$ be the unnormalized population density. The dynamic is given by 
-\begin{equation}
-    \pd{g}{t} = -\pd{g}{s} - mg + \int bgds\delta_0. 
-\end{equation}
-
-\subsection{Pension System}
-Households retire at age $T$. When retiring, the households can choose between 
-a lumpsum transfer $\ell_t$ and a pension that pays stream of income $p_t$. 
-Let $Q(t, s)$ be the population density among those on pension. The dynamic 
+Let $g(t,s)$ be the unnormalized population density. The population dynamic 
 is given by 
 \begin{equation}
-    \pd{Q}{t} = -Q_s - mQ + q(t)g(t, T)\delta_T
+    \pd{g}{t} = -\underbrace{\pd{g}{s}}_{\text{aging}} - \underbrace{mg}_{\text{mortality}} + \underbrace{\int bgds\delta_0}_{\text{birth}}
+\end{equation}
+where $\delta_0$ denotes the Dirac delta centered at $0$. To simplify the 
+model, we take the assumptions that $b(s) = b$ is a constant and that 
+$m(s) = m\one\set{s\geq T_m}$. In plain words, this means that only those 
+who have aged $T_m$ exposes to the mortality risks.\footnote{We recognize 
+that this is a somewhat restrictive and unrealistic assumption, but as we 
+are going to see, this assumption helps to greatly simplify the computation.}
+
+Let $N_t = \int_0^\infty g(t, s)ds$ be the total population and $\hat{g}(t, s)
+= \frac{g(t, s)}{N_t}$ be the normalized population density. Assuming that $\hat{g}$ 
+is at its steady state, an analytical solution is available: 
+\begin{equation}
+    \hat{g}(s) = \begin{cases}
+        be^{-ns}, & s < T_m \\ 
+        be^{-ns}e^{-m(s-T_m)} & s\geq T_m
+    \end{cases}
+\end{equation}
+where $n = \frac{\dot{N}_t}{N_t}$ is the population growth rate satisfying
+\begin{equation}
+    1 = b\frac{1 - e^{-nT_m}}{n} + be^{-nT_m}\frac{1}{n+m}.
+\end{equation}
+For a detailed derivation, we refer to \cref{app:pop_eqs}. 
+
+\subsection{Pension System}
+We assume that all households retire at age $T$. When retiring, the households 
+choose between a lumpsum transfer $\ell$ and a monthly pension that pays a stream 
+of income $p$. Let $\mathcal{Q}(t, s)$ be the population density among the monthly pension 
+recipients. The dynamic is given by 
+\begin{equation}
+    \pd{\mathcal{Q}}{t} = -\underbrace{\pd{\mathcal{Q}}{s}}_{\text{aging}} - \underbrace{m\mathcal{Q}}_{\text{mortality}} + \underbrace{q_t\hat{g}(T)N_t\delta_T}_{\text{new retirees}}
 \end{equation} 
-where $q$ is the proportion of new retirees choosing pension. The government 
-budget constraint is given by 
+where $q_t$ is the proportion of new retirees choosing pension. Suppose that 
+$T\geq T_m$. We can further simplify the recipients dynamic thanks to our 
+assumption on the mortality rate. Let $Q_t = \int_T^\infty \mathcal{Q}(t, s)ds$. 
+$Q_t$ follows the law of motion 
 \begin{equation}
-    dB_t = \sbrc{rB_t + \tau y\int_0^Tg(t, s)ds - (1-q(t))\ell_t g(t, T) - p_t\int_T^\infty Q(t, s)ds}dt.
-\end{equation}
+    dQ_t = \sbrc{q_t\hat{g}(T)N_t - mQ_t}dt. 
+\end{equation}  
 
-\subsection{Households Problem}
-The households choose between the two schemes to maximize the present value. 
-We assume the type one extreme value disturbances on the two options. Hence 
+Let $B_t$ be the level of the pension fund. Its law of motion is given by 
 \begin{equation}
-    q_t = \frac{1}{1+\exp\pth{\ell_t - \E_t\sbrc{\int_T^\infty e^{-(r(s-T)+\int_T^sm(x)dx)}p_sds}}}
+    dB_t = \sbrc{\underbrace{rB_t}_{\text{interest}} + \underbrace{\tau yN_t\int_{T_w}^T\hat{g}(s)ds}_{\text{pension tax}} - \underbrace{(1-q_t)\ell N_t\hat{g}(T)}_{\text{lumpsum}} - \underbrace{pQ_t}_{\text{monthly}}}dt + \sigma B_tdZ_t,  
 \end{equation}
+where $Z_t$ is a Brownian motion. $\tau$ is the tax rate; $y$ is the income 
+; $T_w$ is the age when individuals start to work. 
 
-\subsection{Pension Reform}
-\subsubsection*{Option 1: No Ponzi Scheme Condition}
-The government is forced to reform when it reaches the borrwing limit 
+The system goes bankrupt when $B_t$ hits $0$. Denote the remaining 
+time for $B_t$ to hit $0$ by $T_B$. We shall consider the detrended states 
+$\hat{B}_t = \frac{B_t}{N_t}, \hat{Q}_t = \frac{Q_t}{N_t}$. 
+Since $N_t$ is positive in finite time, the bankrupt time 
+is equivalent to the time when $\hat{B}_t = 0$. In other words, 
+the the remaining time for $\hat{B}_t$ hitting $0$, $T_{\hat{B}}$, coincides 
+with $T_{B}$. The law of motions for the transformed states are given by 
+\begin{align}\label{eq:state_dynamic}
+    d\hat{B}_t &= \sbrc{(r-n)\hat{B}_t + \tau y\int_{T_w}^T\hat{g}(s)ds - (1-q_t)\hat{g}(T)\ell - p\hat{Q}_t}dt + \sigma\hat{B}_tdZ_t \\
+    d\hat{Q}_t &= \sbrc{q_t\hat{g}(T)-(m+n)\hat{Q}_t}dt. 
+\end{align}
+To simplify the notation, we also denote the drift terms 
+by $\mu_B$ and $\mu_Q$, respectively.
+
+\subsection{Individuals' Pension Decisions}
+A retiring individual $i$ chooses between between the two 
+schemes $d\in\set{\ell, p}$ to maximize the utility, given by  
 \begin{equation}
-    \bar{B}_t = \int_t^\infty e^{-r(x-t)}\tau y\int_0^T g(x, s)dsdx = \int_0^\infty\int_0^T e^{-rx}\tau y g(x+t, s)dsdx.
+    u_{it}(d) = \begin{cases}
+        \alpha + \ell + \beta\epsilon_i(\ell) &\text{if } d = \ell, \\
+        V_t + \beta\epsilon_i(p) &\text{if } d = p,
+    \end{cases}
 \end{equation}
-When reaching the limit, the benefits are cut to zero. 
+where $V_t$ is the present discount value of the monthly pension 
+given the current states $(\hat{B}_t, \hat{Q}_t)$, 
+\begin{equation}\label{eq:value}
+    V_t = V(\hat{B}_t, \hat{Q}_t) = \E\sbrc{\int_0^{T_{\hat{B}}} e^{-(\rho+m)s}pds\:\bigg|\: \hat{B}_t, \hat{Q}_t}
+\end{equation}
+with $\rho$ being the subjective discount factor. We assume that 
+the $\epsilon_i(d)$ are independent and identically 
+distributed across individuals and the choices, following the 
+standard Gumbel distribution. The shift parameter $\alpha$ controls 
+the preference of the lumpsum scheme over the monthly one. Although 
+we do not model here elaborately, this may be thought to represent 
+the need of liquidity or the incomplete pension market. Another 
+parameter $\beta$ controls the sensitivity to the flucutation in 
+the present discount value of the monthly pension.  
 
-\subsubsection*{Option 2: Zero Pension Fund}
-An alternative is to assume that the system collapse when the remaining fund 
-reduces to $\bar{B}_t = 0$. This means that the ``reform'' is to cut the benefit and 
-the pension tax simultaneously. 
+By the property of the Gumbel distribution, the individuals' choices 
+aggregate to the proportion choosing the monthly scheme 
+\begin{equation}\label{eq:aggregation}
+    q_t = \P_t(u_{it}(p)>u_{it}(\ell)) = \frac{1}{1+\exp\pth{\frac{\alpha + \ell - V_t}{\beta}}}
+\end{equation}
+by the law of large number across the individuals. Note that 
+$q_t$ is a function of $\hat{B}_t$ and $\hat{Q}_t$ since 
+$V_t = V(\hat{B}_t, \hat{Q}_t)$. 
 
 \subsection{Equilibrium}
-Given initial condition $B_0$, $Q_0 = 0$, and $g_0$, the equilibrium is 
-characterized by $q_t, p_t$ such that 
+We now list down the equilibrium conditions. Given the Markovian 
+states $(\hat{B}_t, \hat{Q}_t)$, the equilibrium is determined 
+by the present discount value of the monthly pension $V_t$ and 
+the proportion choosing monthly shceme $q_t$ such that 
 \begin{thmenum}
-    \item Given $p_s, s\geq t$, the optimal choice of the pension schemes aggregates 
-    to $q_t$. 
-    \item $q_t$ induces paths $B_t, Q_t$. 
-    \item $B_t, Q_t$ imply a path of $p_t$ that is consistent with the one 
-    in (a). 
+    \item Given $q_t$, the law of motions of the states $(\hat{B}_t, \hat{Q}_t)$ 
+    is consistent with $q_t$ (\cref{eq:state_dynamic}).
+    \item Given the law of motions of the states, the present 
+    discount value of the monthly pension $V(\hat{B}_t, \hat{Q}_t)$ 
+    is consistent with the law of motions (\cref{eq:value}). 
+    \item The individuals optimize and the decisions aggregate 
+    to $q_t$ (\cref{eq:aggregation}). 
 \end{thmenum}
 
-We shall first deal with the population equation. 
+To determine the equilibrium, it suffices to compute $V(\hat{B}, \hat{Q})$. 
+Notice that $V$ satisfies the following Hamilton-Jacobi-Bellman equation 
 \begin{equation}
-    g(t, s) = 
-    \begin{cases}
-        g(0, s-t)\exp\pth{-\int_{s-t}^s m(x)dx}, & s>t, \\
-        g(t-s, 0)\exp\pth{-\int_0^s m(x)dx} & s\leq t. 
-    \end{cases} 
+    (\rho + m)V = p + \A V, 
 \end{equation}
-The boundary condition is given by 
+with the boundary condition $V(0, \hat{Q}) = 0$ for all 
+$\hat{Q}$. The operator 
 \begin{equation}
-    \begin{split}
-        g(t, 0) &= \int_0^\infty b(s)g(t, s)ds \\
-        &= \int_0^t b(s)g(t-s, 0)\exp\pth{-\int_0^s m(x)dx}ds 
-        + \int_t^\infty b(s)g(0, s-t)\exp\pth{-\int_{s-t}^s m(x)dx}ds \\ 
-        &= \int_0^t b(t-u)g(u, 0)\exp\pth{-\int_0^{t-u} m(x)dx}du 
-        + \int_t^\infty b(u)g(0, u-t)\exp\pth{-\int_{u-t}^u m(x)dx}du
-    \end{split}
+    \A = \mu_B\pd{}{B} + \mu_Q\pd{}{Q} + \frac{1}{2}\sigma^2B^2\pdd{}{B}
 \end{equation}
-Let $S(s) = \exp\pth{-\int_0^{s} m(x)dx}$ and $f(t) = g(t, 0)$. Assume that there 
-is an age limit $\bar{s}$. The above equation can be rewritten as 
-\begin{equation}
-    f(t) = \int_0^t b(t-u)S(t-u)f(u)du 
-    + \one\set{t\leq \bar{s}}\int_t^{\bar{s}} b(u)g(0, u-t)\frac{S(u)}{S(u-t)}du. 
-\end{equation}
+is the infinitesimal generator. Since the the drift terms 
+also depend on $V$, this partial differential equation is 
+nonlinear. 
+
+To solve the model numerically, we impose the artificial 
+boundary at the upper bound of $\hat{B}$. Since clearly $V_t$ 
+has upper bound $\frac{p}{\rho+m}$ and is increasing in $\hat{B}$, 
+it follows that $\pd{V}{B}$ is approximately $0$ for $\hat{B}$ 
+sufficiently large.
+
+We solve the model based on the finite difference method alongside 
+the successive iteraiton that shares the same spirit with Howard's policy 
+iteration method. This numerical scheme can be viewed as an semi-implicit 
+scheme with time step size being infinite. The sparsity of the generator 
+matrix is exploited to achieve a better efficiency. We present our 
+algorithm explicitly in \cref{alg:successive_iteration}. 
+\begin{algorithm}[ht]
+    \caption{Successive Iteration}
+    \label{alg:successive_iteration}
+    \input{../table/algorithm.tex}
+\end{algorithm}
 
 
-\section{A Simplified Case (No Population Consideration)}
-Let $N_t$ be the volume of populaiton. $bN_t$ is the inflow of newly born 
-agents. Assume that the mortality rate is $0$ before $T$, the age of 
-retirement, and constant $m$ after $T$. 
+\section{Results}
+\subsection{Calibration}
 
-Assume that the population age density 
-is in the steady state. Let $\tilde{g}(t, s)$ denote the unnormalized density. 
-We shall find the stable normalized density. Conjecture that 
-\begin{equation}
-    \tilde{g}(t, s) = g(s)N_t. 
-\end{equation}
+\section*{Appendix}
+\appendix
+\section{Derivation of the Population Equations}\label{app:pop_eqs}
+To find the steady state $\hat{g}$, conjecture that $g(t, s) = \hat{g}(s)N_t$. 
 Plugging back to the population equation gives 
 \begin{equation}
-    g(s)\frac{\dot{N}_t}{N_t} = -\pd{g}{s} - m(s)g(s) + b\delta_0. 
+    \hat{g}(s)\frac{\dot{N}_t}{N_t} = -\pd{\hat{g}}{s} - m(s)\hat{g}(s) + b\delta_0. 
 \end{equation}
 Notice that the right hand side does not depend on $t$. Hence $\frac{\dot{N}_t}{N_t} = n$ 
 is a constant. We can also write the Dirac delta as part of the boundary condition: 
 \begin{equation}
-    g(s)n = -\pd{g}{s} - m(s)g(s), \quad 
-    g(0) = b. 
+    \hat{g}(s)n = -\pd{\hat{g}}{s} - m(s)\hat{g}(s), \quad 
+    \hat{g}(0) = b. 
 \end{equation}
-This is a standard initial value problem with $m(s) = m$ for $s \geq T$ and $0$ 
+This is a standard initial value problem with $m(s) = m$ for $s \geq T_m$ and $0$ 
 otherwise. The solution is given by 
 \begin{equation}
-    g(s) = \begin{cases}
-        be^{-ns}, & s < T \\ 
-        be^{-ns}e^{-m(s-T)} & s\geq T. 
+    \hat{g}(s) = \begin{cases}
+        be^{-ns}, & s < T_m \\ 
+        be^{-ns}e^{-m(s-T_m)} & s\geq T_m. 
     \end{cases}
 \end{equation}
-Finally, the population growth $n$ can be determine by the normalizing condition 
-$\int_0^\infty g(s)ds = 1$:
+Finally, the population growth rate $n$ can be determined by the normalizing condition  
 \begin{equation}
-    1 = b\frac{1 - e^{-nT}}{n} + be^{-nT}\frac{1}{n+m}.
+    \int_0^\infty \hat{g}(s)ds = 1\quad \Rightarrow\quad 1 = b\frac{1 - e^{-nT_m}}{n} + be^{-nT_m}\frac{1}{n+m}.
 \end{equation}
 
-Next, we shall consider the pension system. The advantage of doing the simplification 
-emerges in this part. Notice that in the current case, there is no need to 
-keep track of the population density at every given ages. With an abuse of the notation, 
-we shall denote the amount of people on pension by $Q$. The $Q$ follows 
-\begin{equation}
-    \dot{Q}_t = q_tbe^{-nT}N_t - mQ_t. 
-\end{equation}
-
-Next, we can write down the government budget constraint. 
-\begin{equation}
-    \dot{B}_t = rB_t + N_t\frac{b\tau y}{n}(1-e^{-nT}) - (1-q_t)be^{-nT}N_t\ell_t - p_tQ_t. 
-\end{equation}
-The borrowing limit is given by 
-\begin{equation}
-    \bar{B}_t = \int_t^\infty e^{-r(s-t)}N_s\frac{b\tau y}{n}(1-e^{-nT})ds 
-    = \frac{b\tau y}{n}(1-e^{-nT})\frac{N_t}{r-n}. 
-\end{equation}
-
-To determine the equilibrium, define the remaining time to reform 
-\begin{equation}
-    T^R(B_0, Q_0, N_0) = \inf\Set{s\geq 0}{B_s = \bar{B}_s}. 
-\end{equation}
-Since the timing of reform is unique across cohorts, the remaining time to 
-reform counts down to $0$ deterministically at speed $-1$. From this, using 
-the definition of $q_t$,  
-\begin{equation}
-    q_t = \frac{1}{1 + \exp\pth{\ell - \frac{p}{r+m}\pth{1 - e^{-(r+m)(T^r - t)}}}}
-\end{equation}
-for $t<T^r$. Now, we can solve for $Q$ on $[0,T^r]$ and hence $B$ as well.
-
-To determine $T^r$, use the definition $\bar{B}_{T^r} = B_{T^r}$
-and we have pinned down the equilibrium once $T^r$ is determined. 
-
-\section{Return on Pension Fund}
-In this section, we relax the assumption from the last section where 
-the reform timing is certain by considering volatile investment return on 
-the pension fund running by the government. Speficially, we shall assume that 
-the fund follows a geometric Brownian motion. The new budget constraint is 
-\begin{equation}
-    dB_t = \sbrc{rB_t + N_t\frac{b\tau y}{n}(1-e^{-nT}) - (1-q_t)be^{-nT}N_t\ell_t - p_tQ_t}dt + \sigma B_tdZ_t
-\end{equation}
-where $Z_t$ is a Brownian motion. Now the reform time $T^R$ becomes random. 
-Next, we shall consider the detrend $\hat{B}_t = \frac{B_t}{N_t}$ and 
-$\hat{Q}_t = \frac{Q_t}{N_t}$. The corresponding dynamics are given by 
-\begin{align}
-    d\hat{B}_t &= \sbrc{(r-n)\hat{B}_t + \frac{b\tau y}{n}(1-e^{-nT}) - (1-q_t)be^{-nT}\ell - p\hat{Q}_t}dt + \sigma\hat{B}_tdZ_t \\
-    d\hat{Q}_t &= \sbrc{q_t be^{-nT}-(m+n)\hat{Q}_t}dt. 
-\end{align}
-Note that the reform time can also be defined as the hitting time to 
-$\hat{B}_t = 0$. The aggregate choice $q_t$ now depends on $V(\hat{B}_t, \hat{Q}_t)$ 
-where $V$ is defined by 
-\begin{equation}\label{eq:value}
-    V(\hat{B}_t, \hat{Q}_t) = \E\sbrc{\int_t^{T^R_t} e^{-(r+m)(s-t)}ds\:\bigg|\:\hat{B}_t, \hat{Q}_t}. 
-\end{equation}
-To solve for $V$, the corresponding PDE is given by 
-\begin{equation}
-    (r+m)V = 1 + \mu_{\hat{B}}\pd{V}{\hat{B}} + \mu_{\hat{Q}}\pd{V}{\hat{Q}} + \frac{1}{2}\sigma^2\hat{B}^2.
-\end{equation}
-Observe that $\hat{Q}$ stays in $[0, \frac{be^{-nT}}{m+n}]$. In the 
-$\hat{B}$ coordinate, we use the following boundary conditions:
-\begin{equation}
-    V(0, \hat{Q}) = 0\quad \pd{V}{\hat{B}}(\hat{B}_{upper}, \hat{Q}) = 0.0.
-\end{equation}
-The choice for the upper boundary comes from the fact that $V$ is clearly 
-increasing in $\hat{B}$ and is bounded above. It follows that the derivative 
-of $V$ must be small for sufficiently large $\hat{B}$.
-
-\section{Estimation}
-To estimate the unknown parameters, we use the following approximated maximum 
-likelihood. Let $\Delta$ be the length of time gaps between observations and 
-denote $X_t = (\hat{B}_t, \hat{Q}_t)'$. Let $\mu$ and $\Sigma$ collect the 
-drift term and the diffusion term respectively. The main challenge of maximum 
-likelihood comes from computing $p(\Delta, X_{t+\Delta}, X_t)$, the 
-transition probability from $X_t$ to $X_{t+\Delta}$ after $\Delta$. 
-The following two approaches may be used. 
-
-\subsection*{Kolmogorov Forward Equation}
-Given $\theta$, we can solve for the value function given by \ref{eq:value}. 
-Then we can solve for the Kolmogorov forward equation associated 
-with the stochastic differential equation. 
-
-The drawback of this approach is the computational intensitivity. To 
-achieve the required accuracy, the grid size needs to be small enough. 
-A local $h$-refinement algorithm needs to be used. 
-
-\subsection*{Local Gaussian Approximation with Method of Moments}
-This approach is motivated from the following Euler-Maruyama scheme. 
-For small $\Delta$, we may use the following approximation:
-\begin{equation}
-    X_{t+\Delta} \approx X_t + \mu(X_t)\Delta + \Sigma(X_t)\sqrt{\Delta}Z
-\end{equation}
-where $Z\sim N(0,I)$. Use the moments 
-\begin{equation}
-    B_{t+\Delta} - B_t
-\end{equation}
 
 \bibliographystyle{apacite}
 \bibliography{pension}

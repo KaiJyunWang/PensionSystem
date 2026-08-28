@@ -1,0 +1,32 @@
+
+\begin{algorithmic}[1]
+\Require Initial guess $V^{(0)}$, tolerance $\epsilon>0$, maximum iterations $K$
+\State Set $k \gets 0$
+\Repeat
+    \State Given $V^{(k)}$, compute 
+    \begin{equation*}
+        \mu_B^{(k)} = \mu_B(B, Q, V^{(k)}(B, Q)), \quad \mu_Q^{(k)} = \mu_Q(B, Q, V^{(k)}(B, Q))
+    \end{equation*}
+    and the infinitesimal generator 
+    \begin{equation*}
+        \A^{(k)} = \mu_B^{(k)}\pd{}{B} + \mu_Q^{(k)}\pd{}{Q} + \frac{1}{2}\sigma^2B^2\pdd{}{B}.
+    \end{equation*}
+    with adjustments to the boundary nodes. 
+    \State Solve the linear system 
+    \begin{equation*}
+        \pth{(\rho+m)I - \A^{(k)}}V^{(k+1)} = \mathbf{b}, \quad 
+        \mathbf{b} = p\operatorname{vec}\begin{pmatrix}
+            0 & 0 & \cdots & 0 \\ 
+            1 & 1 & \cdots & 1 \\ 
+            \vdots & \ddots & \ddots & \vdots \\ 
+            1 & \cdots & 1 & 1
+        \end{pmatrix}.
+    \end{equation*}
+    \State Compute the error 
+    \begin{equation*}
+        e^{(k+1)} \gets \norm{V^{(k+1)} - V^{(k)}}_\infty.
+    \end{equation*}
+    \State $k \gets k+1$
+\Until{$e^{(k)}<\epsilon$ or $k=K$}
+\State \Return $V^{(k)}$. 
+\end{algorithmic}
