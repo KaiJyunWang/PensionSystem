@@ -194,9 +194,10 @@ r0 = 0.02
 β0 = 2.0
 θ0 = [log(r0), log(σ0), α0, log(β0)]
 
-optf = OptimizationFunction((θ, p) -> loss(θ; B_path = df.B[3:ext_finance_date_id-1], Q_path = df.Q[3:ext_finance_date_id-1]), AutoForwardDiff())
+optf = OptimizationFunction((θ, p) -> loss(θ; B_path = df.B[3:ext_finance_date_id-1], 
+    Q_path = df.Q[3:ext_finance_date_id-1]), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
-sol = solve(prob, NelderMead(); show_trace = true)
+sol = solve(prob, BFGS(); show_trace = true)
 res = sol.u |> (x -> [exp(x[1]), exp(x[2]), x[3], exp(x[4])])
 
 para_est = model(; r = res[1], σ = res[2], α = res[3], β = res[4])
