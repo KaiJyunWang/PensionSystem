@@ -3,8 +3,11 @@ using DiffEqCallbacks, OrdinaryDiffEq, StochasticDiffEq
 using Parameters, Printf, SteadyStateDiffEq
 using DifferentialEquations, Interpolations
 using Statistics, SparseArrays, ExponentialAction
-using Optimization, OptimizationOptimJL, ADTypes, ForwardDiff
+using Optimization, OptimizationOptimJL, Random
 using CSV, DataFrames, Dates
+
+# helper 
+dropdim_mean(x; dims) = dropdims(mean(x; dims = dims), dims = dims)
 
 function model(; b = 0.00462, m = 0.058, T = 65, r = 0.04, p = 2.556, 
     l = 20.61, τ = 0.125, y = 5.496, α = -1.0, β = 3.0, ρ = 0.02, σ = 0.08, B_max = 10.0)
@@ -93,17 +96,22 @@ function solve_pde(; tol = 1e-8, iterations = 1000, para)
     return extrapolate(interpolate((Bs, Qs,), V0, Gridded(Linear())), Line())
 end
 
+# Solver for Kolmogorov Forward Equation. Take m0 to be a matrix to solve for multiple initial distribution 
+function solve_kfe(Δ, m0; para, V)
+    A = construct_generator(V; para = para)
+    return expv(Δ, A', m0) |> (x -> reshape(x, length(para.Bs), length(para.Qs)))
+end
+
 V = solve_pde(; para = para)
 
 Q_grids = range(0.0, para.Q_max, 101)
 B_grids = range(0.0, para.B_max, 101)
 Vs = [V(B, Q) for B in B_grids, Q in Q_grids]
-surface(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7)
-contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V")
+surface(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
+contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V", c=:viridis, levels = 20, lw = 0)
 
 # simulation 
 # u = [B, Q]
-
 function drift!(du, u, p, t)
     @unpack μB, μQ = p
 
@@ -147,34 +155,70 @@ end
 # Estimation
 
 # generated data
-#=
+
 times = 0.0:1/12:15.0 |> collect
-Xs = sim.(times)
+X_path = sim.(times)
 
-B_path = getindex.(Xs, 1)
-Q_path = getindex.(Xs, 2)
-=#
+k = 30
+Random.seed!(646)
+ξs = [randn(2) for _ in 1:k]
+Random.seed!(788)
+ηs = [randn(2) for _ in 1:k]
 
-# method of moments with Euler-Maruyama type approximation 
-function loss(θ; B_path = B_path, Q_path = Q_path, W = I, Δ = 1/12)
-    para = model(; r = exp(θ[1]), σ = exp(θ[2]), α = θ[3], β = exp(θ[4]))
+# GMM with characteristic function
+# S is the decomposition such that W = S'S.
+function loss(θ; X_path = X_path, S = I, Δ = 1/12, ξs = ξs, ηs = ηs, rng = Xoshiro(1234), n_sim = 200)
+    n_data = length(X_path)-1
+    para = model(; r = θ[1], σ = exp(θ[2]), α = θ[3], β = θ[4])
     V = solve_pde(; para = para)
 
-    q_target = mean(((Q_path[2:end] - Q_path[1:end-1])/Δ + (para.m + para.n) * Q_path[1:end-1]) / (para.b * exp(-para.n * para.T)))
-    qs = [para.q(V(B, Q)) for (B, Q) in zip(B_path[1:end-1], Q_path[1:end-1])] |> mean
-    σ_target = std((diff(B_path) - para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) * Δ) ./ (B_path[1:end-1] * sqrt(Δ)))
-    mean_μB_target = mean(diff(B_path) ./ (B_path[1:end-1] * para.σ * sqrt(Δ)))
-    mean_μB = mean([para.μB(B, Q, V(B, Q))/(B * para.σ)*sqrt(Δ) for (B, Q) in zip(B_path[1:end-1], Q_path[1:end-1])])
+    seeds = rand(rng, 1:10^8, n_sim)
+    
+    function drift!(du, u, p, t)
+        @unpack μB, μQ = p
 
-    ms = vcat(qs - q_target, para.σ - σ_target, mean_μB - mean_μB_target) 
-    return ms' * W * ms
+        du[1] = μB(u[1], u[2], V(u[1], u[2]))
+        du[2] = μQ(u[2], V(u[1], u[2]))
+    end
+
+    function diffusion!(du, u, p, t)
+        @unpack σB = p
+        du[1] = σB(u[1])
+        du[2] = 0.0
+    end
+
+    sde_prob = SDEProblem(drift!, diffusion!, [0.0, 0.0], (0.0, Δ), para)
+    ensemble_prob = EnsembleProblem(
+        sde_prob, 
+        output_func = (sol, ctx) -> (sol.u[end], false),
+        prob_func = (prob, ctx, repeat) -> remake(prob; seed = seeds[div(ctx-1, n_data)+1], u0 = X_path[mod(ctx-1, n_data)+1])
+    )
+    sol = solve(
+        ensemble_prob,
+        SRIW1(),
+        EnsembleThreads();
+        trajectories = n_sim*n_data
+    )
+    sim_Xs = reshape(sol.u, n_data, n_sim)
+    η_dot = [dot(η, X) for η in ηs, X in X_path[1:end-1]]
+    ξ_data_dot = [dot(ξ, X) for ξ in ξs, X in X_path[2:end]]
+    ξ_sim_dot = [dot(ξ, X) for ξ in ξs, X in sim_Xs]
+    cond_chars = vcat(dropdim_mean(cos.(ξ_sim_dot); dims = 3), dropdim_mean(sin.(ξ_sim_dot); dims = 3))
+    cond_chars_data = vcat(cos.(ξ_data_dot), sin.(ξ_data_dot))
+    test_funcs = vcat(cos.(η_dot), sin.(η_dot))
+    gs = (cond_chars_data - cond_chars) .* test_funcs
+    return sum(abs2, S * dropdim_mean(gs; dims = 2)), gs
 end
 
 # Estimation with real data 
 df = CSV.read("data/labor_insurance_fund_monthly.csv", DataFrame)
+ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
 
 df[!, :B] = df.fund_level_ntd ./ df.taiwan_registered_population ./ 100_000
 df[!, :Q] = df.labor_insurance_old_age_pension_recipients ./ df.taiwan_registered_population
+B_path = df.B[3:ext_finance_date_id-1]
+Q_path = df.Q[3:ext_finance_date_id-1]
+X_path = collect.(zip(B_path, Q_path))
 
 Δ = 1/12
 begin
@@ -186,20 +230,29 @@ begin
 end
 
 # initial guesses
-ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
-
 r0 = 0.02
 σ0 = 0.1
 α0 = -18.0
 β0 = 2.0
-θ0 = [log(r0), log(σ0), α0, log(β0)]
+θ0 = [r0, log(σ0), α0, β0]
 
-optf = OptimizationFunction((θ, p) -> loss(θ; B_path = df.B[3:ext_finance_date_id-1], 
-    Q_path = df.Q[3:ext_finance_date_id-1]), AutoFiniteDiff())
+optf = OptimizationFunction((θ, p) -> loss(θ)[1], AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
-sol = solve(prob, BFGS(); show_trace = true)
-res = sol.u |> (x -> [exp(x[1]), exp(x[2]), x[3], exp(x[4])])
+sol = solve(prob, NelderMead(); show_trace = true)
+res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
 
+# compute the optimal weighting matrix. Add ridge regularization to avoid singularity.
+gs = loss(sol.u)[2]
+Ω = mean([g * g' for g in eachcol(gs)])
+S = cholesky(Ω + 1e-6 * I).L' \ I
+
+# second step GMM 
+optf = OptimizationFunction((θ, p) -> loss(θ; S = S)[1], AutoFiniteDiff())
+prob = OptimizationProblem(optf, sol.u)
+sol = solve(prob, NelderMead(); show_trace = true)
+res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
+
+# simulate the estimated model
 para_est = model(; r = res[1], σ = res[2], α = res[3], β = res[4])
 V_est = solve_pde(para = para_est, iterations = 1000)
 
@@ -245,3 +298,4 @@ begin
     #p4 = plot(ts, sim_Vs, title = "V", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
     plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
 end
+
