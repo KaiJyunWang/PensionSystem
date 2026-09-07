@@ -232,7 +232,7 @@ function diffusion_est!(du, u, p, t)
 end
 
 sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[3], df.Q[3]], (0.0, 1/12 * (length(df.B[3:end])-1)), para_est)
-sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8)
+sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 9527)
 
 # plot simulation
 begin
@@ -253,4 +253,45 @@ begin
     #p4 = plot(ts, sim_Vs, title = "V", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
     plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
     savefig(plt, "./figure/estimated_sim.png")
+end
+
+# simulation with no external finance 
+sim_horizon = times[findfirst(x->x==Date(2020), df.date[3:end])-1:end]
+sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[ext_finance_date_id-1], df.Q[ext_finance_date_id-1]], (sim_horizon[1], sim_horizon[end]), para_est)
+n_sim = 20
+Random.seed!(2026)
+seeds = rand(UInt64, n_sim)
+ensemble_prob = EnsembleProblem(
+        sde_prob, 
+        prob_func = (prob, ctx, repeat) -> remake(prob; seed = seeds[ctx])
+    )
+sol = solve(
+        ensemble_prob,
+        SRIW1(),
+        EnsembleThreads();
+        trajectories = n_sim, 
+        callback = cb, 
+        abstol = 1e-8
+    )
+
+sim_Bs = hcat([getindex.(sol(t), 1) for t in sim_horizon]...)
+sim_Qs = hcat([getindex.(sol(t), 2) for t in sim_horizon]...)
+sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
+
+begin
+    times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
+    p1 = plot(times, df.B[3:end], label = "data", title="B", xlims=(times[1], times[end]))
+    p2 = plot(times, df.Q[3:end], label = "data", title="Q", xlims=(times[1], times[end]))
+    p3 = plot(times[1:end-1], diff(df.Q[3:end])/Δ/(para.b * exp(-para.n*para.T)), title="q", label = "data", xlims=(times[1], times[end]))
+
+    vline!.([p1, p2, p3], Ref([(findfirst(x->x==Date(2020), df.date[3:end])-1)*Δ]) , c=:brown, label="")
+
+    for i in 1:n_sim 
+        plot!(p1, sim_horizon, sim_Bs[i, :], label="", c=:orange)
+        plot!(p2, sim_horizon, sim_Qs[i, :], label="", c=:orange)
+        plot!(p3, sim_horizon, sim_qs[i, :], label="", c=:orange)
+    end
+    plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
+    display(plt)
+    savefig(plt, "./figure/no_ext_finance.png")
 end
