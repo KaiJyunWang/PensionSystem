@@ -178,6 +178,43 @@ algorithm explicitly in \cref{alg:successive_iteration}.
 
 \section{Results}
 \subsection{Calibration}
+We separate the parameters in the model in to two parts. One is calibrated outside the 
+model and the other is estimated by solving the inverse problem. To illustrate the estimation 
+procedure, denote the estimand vector $\theta$. The data is a time series 
+$X_i = (\hat{B}_i, \hat{Q}_i)$ sampled from equidistant time grids of gap size $\Delta$. The 
+inverse problem is the following: 
+\begin{equation}
+    \min_{\theta} Q(f, \theta)
+\end{equation} 
+subject to 
+\begin{align}
+    ((\rho + m)I - \A(V, \theta))V &= p \\ 
+    e^{\Delta (\A(V, \theta))^*}\delta_{x} &= f(\cdot, x)
+\end{align}
+where $Q$ is some type of the objective function of the M-estimator. 
+The first constraint is the backward equation and the second one is the forward equation. 
+The Lagrangian is given by 
+\begin{equation}
+    L(\theta, \lambda_b, \lambda_f) = Q(f, \theta) + \inp{\lambda_b}{((\rho + m)I - \A(V, \theta))V - p} + \inp{\lambda_f}{e^{\Delta (\A(V, \theta))^*}\delta_{x} - f}.
+\end{equation}
+Differentiate with respect to $\theta$. 
+\begin{equation*}
+    \pd{L}{\theta} = \pd{Q}{\theta} + \inp{\lambda_b}{\partial_\theta \sbrc{((\rho + m)I - \A(V, \theta))V}} + \inp{\lambda_f}{\partial_\theta e^{\Delta (\A(V, \theta))^*}\delta_{x}}
+\end{equation*}
+
+The parameters for the population structure are calibrated to Taiwan's 
+population. We take $T_m = T_r = 65$ and $T_w = 20$. The birth rate is set to 
+be the total fertility rate in 2025 and the mortality rate leads to the median 
+lifespan being $77$. The details are given in \cref{tab:parameters}. 
+
+\begin{table}[!htbp]
+    \centering
+    \caption{Model Parameters}
+    \label{tab:parameters}
+    \vspace{0.5em}
+    \input{../table/parameters.tex}
+\end{table}
+
 
 \section*{Appendix}
 \appendix
