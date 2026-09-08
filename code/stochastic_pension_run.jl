@@ -6,16 +6,13 @@ using Statistics, SparseArrays, ExponentialAction
 using Optimization, OptimizationOptimJL, Random
 using CSV, DataFrames, Dates
 
-# helper 
-dropdim_mean(x; dims) = dropdims(mean(x; dims = dims), dims = dims)
-
 function model(; b = 0.00462, m = 0.058, T = 65, r = 0.04, p = 2.556, 
     l = 20.61, τ = 0.125, y = 5.496, α = -1.0, β = 3.0, ρ = 0.02, σ = 0.08, B_max = 10.0)
     # find population growth rate 
     n = find_zero(n -> (-expm1(-n * T)) / n + exp(-n * T) / (n + m) - 1 / b, (-m+ 1e-8, -1e-8))
 
     # auxilary functions
-    q(V) = V == 0 ? logistic(-α / β) : logistic(-(α + l - p * max(V, 0)) / β)
+    q(V) = V == 0 ? logistic(-α / β) : logistic(-(α + l - V) / β)
     μB(B, Q, V) = (r-n) * B + b * τ * y / n * (exp(-n * 20)-exp(-n * T)) - (1 - q(V)) * b * exp(-n * T) * l - p * Q
     σB(B) = σ * B
     μQ(Q, V) = q(V) * b * exp(-n * T) - (m+n) * Q
@@ -73,10 +70,10 @@ end
 
 # solve the PDV of the pension
 function solve_pde(; tol = 1e-8, iterations = 1000, para)
-    @unpack m, r, ρ, μB, σB, μQ, B_max, Q_max, Bs, Qs = para
+    @unpack m, r, ρ, p, μB, σB, μQ, B_max, Q_max, Bs, Qs = para
 
     V0 = [1/(ρ+m) * B / B_max for B in Bs, Q in Qs]
-    rhs = ones(size(V0))
+    rhs = fill(p, size(V0))
     rhs[1, :] .= 0.0
     rhs = vec(rhs)
     
@@ -161,16 +158,24 @@ X_path = sim.(times)
 
 # Least Square + Euler-Maruyama
 # S is the decomposition such that W = S'S.
-function loss(θ; B_path = B_path, Q_path = Q_path, Δ = 1/12)
+function loss(θ; B_path = B_path, Q_path = Q_path, S = I, Δ = 1/12)
     para = model(; r = θ[1], σ = exp(θ[2]), α = θ[3], β = θ[4])
     V = solve_pde(; para = para)
     μB_targets = diff(B_path)./B_path[1:end-1]
-    σ_target = std(μB_targets) / sqrt(Δ)
-    μBs = Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1]
-    μQ_targets = diff(Q_path)
-    μQs = Δ * para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1]))
+    μQ_targets = diff(Q_path) 
 
-    return 0*mean(abs2, μB_targets - μBs) + mean(abs2, para.σ - σ_target) + mean(abs2, μQ_targets - μQs)
+    σ_target = std(μB_targets) / sqrt(Δ) - para.σ
+    μB_mean = mean(μB_targets) - mean(Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1])
+    μQ_mean = mean(μQ_targets) - mean(Δ * para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
+    σQ_target = std(μQ_targets) - std(Δ * para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
+
+    ms = vcat(μB_mean, σ_target, μQ_mean, σQ_target)
+    # μBs = Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1]
+    # μQ_std_targets = std(μQ_targets)
+    # μQ_stds = std(para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
+
+    # return 0*mean(abs2, μB_targets - μBs) + mean(abs2, para.σ - σ_target) + mean(abs2, μQ_targets - μQs) + mean(abs2, μQ_std_targets - μQ_stds)
+    return mean(abs2, S * ms)
 end
 
 # Estimation with real data 
@@ -195,7 +200,7 @@ end
 # initial guesses
 r0 = 0.02
 σ0 = 0.1
-α0 = -18.0
+α0 = 0.0
 β0 = 2.0
 θ0 = [r0, log(σ0), α0, β0]
 
@@ -215,6 +220,7 @@ begin
     p1 = surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
     p2 = contourf(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", c=:viridis, levels = 20, lw = 0)
     plt = plot(p1, p2, layout=(1, 2), size=(800, 400))
+    display(plt)
     savefig(plt, "./figure/estimated_V.png")
 end
 # simulation on the estimated parameters
@@ -231,27 +237,43 @@ function diffusion_est!(du, u, p, t)
     du[2] = 0.0
 end
 
-sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[3], df.Q[3]], (0.0, 1/12 * (length(df.B[3:end])-1)), para_est)
-sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 9527)
+sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[3], df.Q[3]], (0.0, Δ * (length(df.B[3:end])-1)), para_est)
+n_sim = 20
+Random.seed!(21)
+seeds = rand(UInt64, n_sim)
+ensemble_prob = EnsembleProblem(
+        sde_prob, 
+        prob_func = (prob, ctx, repeat) -> remake(prob; seed = seeds[ctx])
+    )
+sol = solve(
+        ensemble_prob,
+        SRIW1(),
+        EnsembleThreads();
+        trajectories = n_sim, 
+        callback = cb, 
+        abstol = 1e-8
+    )
+sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 1234)
 
 # plot simulation
 begin
-    times = 0.0:1/12:(length(df.B[3:end])-1)/12
+    times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
     p1 = plot(times, df.B[3:end], label = "data", title="B", xlims=(times[1], times[end]))
     p2 = plot(times, df.Q[3:end], label = "data", title="Q", xlims=(times[1], times[end]))
     p3 = plot(times[1:end-1], diff(df.Q[3:end])/Δ/(para.b * exp(-para.n*para.T)), title="q", label = "data", xlims=(times[1], times[end]))
     ts = range(0.0, sim.t[end], 300)
     vline!.([p1, p2, p3], Ref([(findfirst(x->x==Date(2020), df.date[3:end])-1)/12]) , c=:brown, label="")
-    #sim_Vs = map(u -> V(u...), sim.(ts))
-    Bs = getindex.(sim.(ts), 1)
-    Qs = getindex.(sim.(ts), 2)
-    plot!(p1, ts, Bs, title = "B", xlabel = "t", label = "sim")
-    plot!(p1, [times[1], times[end]], zeros(2), label = "", c=:black, ls=:dash)
-    plot!(p2, ts, Qs, title = "Q", xlabel = "t", label = "sim")
-    plot!(p3, ts, para.q.(V_est.(Bs, Qs)), label="sim")
-    #p3 = plot(ts, para.q.(sim_Vs), title = "q", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
-    #p4 = plot(ts, sim_Vs, title = "V", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
-    plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
+    
+    sim_Bs = hcat([getindex.(sol(t), 1) for t in times]...)
+    sim_Qs = hcat([getindex.(sol(t), 2) for t in times]...)
+    sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
+    for i in 1:n_sim 
+        plot!(p1, times, sim_Bs[i, :], label="", c=:orange)
+        plot!(p2, times, sim_Qs[i, :], label="", c=:orange)
+        plot!(p3, times, sim_qs[i, :], label="", c=:orange)
+    end
+    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
+    display(plt)
     savefig(plt, "./figure/estimated_sim.png")
 end
 
@@ -291,7 +313,7 @@ begin
         plot!(p2, sim_horizon, sim_Qs[i, :], label="", c=:orange)
         plot!(p3, sim_horizon, sim_qs[i, :], label="", c=:orange)
     end
-    plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
+    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
     display(plt)
     savefig(plt, "./figure/no_ext_finance.png")
 end

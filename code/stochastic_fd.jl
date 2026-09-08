@@ -244,7 +244,7 @@ res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
 # compute the optimal weighting matrix. Add ridge regularization to avoid singularity.
 gs = loss(sol.u)[2]
 Ω = mean([g * g' for g in eachcol(gs)])
-S = cholesky(Ω + 1e-6 * I).L' \ I
+S = cholesky(Ω + 1e-6 * I).U' \ I
 
 # second step GMM 
 optf = OptimizationFunction((θ, p) -> loss(θ; S = S)[1], AutoFiniteDiff())
