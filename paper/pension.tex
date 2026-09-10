@@ -14,13 +14,55 @@
 \section{Introduction}
 TBD. 
 
-\textbf{Related Literature: } 
-\begin{itemize}
-    \item \cite{huixin2023}. Empirical paper on the mechanisms of pension 
-    reforms. Three mechanisms are important: income effect on working longer 
-    caused by benefit cut, early withdrawl to extract more benefits, and the 
-    uncertainty mechanism due to implementation uncertainty. 
-\end{itemize}
+\paragraph{Related literature.}
+This paper contributes to three strands of literature. First, it relates to the
+large literature on the sustainability and reform of public pension systems in
+aging economies. Quantitative work emphasizes that declining fertility and
+increasing longevity weaken the contribution base while raising promised benefit
+payments, creating pressure for changes in taxes, benefits, and retirement ages
+\cite{attanasio2007,boerschsupan2016}. This literature generally studies how
+demographic change and policy reform affect fiscal balances, labor supply, saving,
+and welfare. We instead focus on a distinct source of financial fragility: when
+beneficiaries can choose the maturity of their benefits, their response to a
+weakening fund can itself alter the fund's probability of depletion.
+
+Second, our analysis is related to empirical work on how households respond to
+pension reforms and uncertainty about future benefits. Using a narrative record
+of reforms in ten OECD countries, \cite{huixin2023} find that immediately
+implemented pension retrenchments induce older workers to remain in the labor
+force, whereas announcements of reforms with long implementation lags can
+accelerate labor-force exit. The latter response is stronger for fundamental
+reforms and where trust in government is lower, indicating that expectations and
+policy uncertainty matter for retirement decisions. Our mechanism is
+complementary: retirees respond to the endogenous expected value of promised
+monthly payments, and their choices feed back into the financial state that
+determines that value.
+
+Third, the choice between a lump sum and monthly payments connects the paper to
+the literature on annuitization. In the canonical life-cycle model, annuities
+provide insurance against longevity risk and can yield substantial welfare gains
+\cite{yaari1965,davidoff2005}. Nevertheless, retirees annuitize much less wealth
+than benchmark models predict. Existing explanations emphasize liquidity needs,
+bequest motives, pre-existing annuitized wealth, product design, and behavioral
+framing \cite{brown2008,benartzi2011}. We add the solvency of the benefit provider
+as an endogenous determinant of annuity demand. A lower fund balance reduces the
+expected duration of monthly payments, shifts retirees toward immediate lump-sum
+claims, and can further erode the fund.
+
+The model is most closely related in structure to the dynamic debt-run framework
+of \cite{he2012}. They study a firm with a stochastic fundamental and staggered
+short-term debt maturities. Each maturing creditor's rollover decision depends on
+the anticipated decisions of creditors whose claims mature in the future, giving
+rise to a dynamic feedback between rollover behavior and default risk. Our model
+shares the continuous-time structure, the stochastic fundamental, the sequential
+arrival of decision makers, and an endogenous stopping boundary. The economic
+objects differ: retiring workers choose once between an immediate lump sum and a
+life-contingent stream, while the pension fund's liabilities also evolve with the
+stock and mortality of monthly-benefit recipients. Thus, rather than creditors'
+coordination over debt rollover, the pension run operates through the effect of
+endogenous benefit maturity on the fund's cash flows. Both mechanisms extend the
+broader insight that individually optimal withdrawals can amplify aggregate
+fragility \cite{diamond1983}.
 
 \section{Model}
 We consider a continuous time model with an infinite horizon. There is a continuum 
@@ -181,33 +223,14 @@ algorithm explicitly in \cref{alg:successive_iteration}.
 We separate the parameters in the model in to two parts. One is calibrated outside the 
 model and the other is estimated by solving the inverse problem. To illustrate the estimation 
 procedure, denote the estimand vector $\theta$. The data is a time series 
-$X_i = (\hat{B}_i, \hat{Q}_i)$ sampled from equidistant time grids of gap size $\Delta$. The 
-inverse problem is the following: 
-\begin{equation}
-    \min_{\theta} Q(f, \theta)
-\end{equation} 
-subject to 
-\begin{align}
-    ((\rho + m)I - \A(V, \theta))V &= p \\ 
-    e^{\Delta (\A(V, \theta))^*}\delta_{x} &= f(\cdot, x)
-\end{align}
-where $Q$ is some type of the objective function of the M-estimator. 
-The first constraint is the backward equation and the second one is the forward equation. 
-The Lagrangian is given by 
-\begin{equation}
-    L(\theta, \lambda_b, \lambda_f) = Q(f, \theta) + \inp{\lambda_b}{((\rho + m)I - \A(V, \theta))V - p} + \inp{\lambda_f}{e^{\Delta (\A(V, \theta))^*}\delta_{x} - f}.
-\end{equation}
-Differentiate with respect to $\theta$. 
-\begin{equation*}
-    \pd{L}{\theta} = \pd{Q}{\theta} + \inp{\lambda_b}{\partial_\theta \sbrc{((\rho + m)I - \A(V, \theta))V}} + \inp{\lambda_f}{\partial_\theta e^{\Delta (\A(V, \theta))^*}\delta_{x}}
-\end{equation*}
+$X_i = (\hat{B}_i, \hat{Q}_i)$ sampled from equidistant time grids of gap size $\Delta$. 
 
 The parameters for the population structure are calibrated to Taiwan's 
 population. We take $T_m = T_r = 65$ and $T_w = 20$. The birth rate is set to 
 be the total fertility rate in 2025 and the mortality rate leads to the median 
 lifespan being $77$. The details are given in \cref{tab:parameters}. 
 
-\begin{table}[!htbp]
+\begin{table}[ht]
     \centering
     \caption{Model Parameters}
     \label{tab:parameters}
@@ -215,6 +238,26 @@ lifespan being $77$. The details are given in \cref{tab:parameters}.
     \input{../table/parameters.tex}
 \end{table}
 
+\begin{figure}[ht]
+    \centering 
+    \includegraphics[scale=0.5]{../figure/estimated_V.png}
+    \label{fig:estimated_V}
+    \caption{Estimated $V$}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering 
+    \includegraphics[scale=0.5]{../figure/estimated_sim.png}
+    \label{fig:estimated_sim}
+    \caption{Simulated Paths of the Estimated Model}
+\end{figure}
+
+\begin{figure}[ht]
+    \centering 
+    \includegraphics[scale=0.5]{../figure/no_ext_finance.png}
+    \label{fig:no_ext_finance}
+    \caption{Counterfactual Simulations without External Finance}
+\end{figure}
 
 \section*{Appendix}
 \appendix
