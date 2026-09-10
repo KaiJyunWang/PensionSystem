@@ -178,21 +178,51 @@ function loss(θ; B_path = B_path, Q_path = Q_path, S = I, Δ = 1/12)
     return mean(abs2, S * ms)
 end
 
+function loss2(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = 1/12)
+    para = model(; r = θ[1], σ = exp(θ[2]), α = θ[3], β = θ[4])
+    V = solve_pde(; para = para)
+    μB_targets = diff(B_path)./B_path[1:end-1]
+     
+
+    σ_target = std(μB_targets) / sqrt(Δ) - para.σ
+    μB_mean = mean(μB_targets) - mean(Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1])
+    q_mean = mean(para.q.(V.(B_path[1:end-1], Q_path[1:end-1])) - q_path[1:end-1])
+    q_sd = std(para.q.(V.(B_path[1:end-1], Q_path[1:end-1]))) - std(q_path[1:end-1])
+
+    ms = vcat(μB_mean, σ_target, q_mean, q_sd)
+    # μBs = Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1]
+    # μQ_std_targets = std(μQ_targets)
+    # μQ_stds = std(para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
+
+    # return 0*mean(abs2, μB_targets - μBs) + mean(abs2, para.σ - σ_target) + mean(abs2, μQ_targets - μQs) + mean(abs2, μQ_std_targets - μQ_stds)
+    return mean(abs2, S * ms)
+end
+
 # Estimation with real data 
 df = CSV.read("data/labor_insurance_fund_monthly.csv", DataFrame)
+df.monthly_pension_recipients[1:2] .= 0
+df.lumpsum_recipients[1] = 0
+plot(df.date, df.monthly_pension_recipients, label="monthly")
+plot(df.date[1:end-1], diff(df.monthly_pension_recipients), label="monthly")
+plot!(df.date, df.lumpsum_recipients, label="lumpsum")
+q_path = diff(df.monthly_pension_recipients)./(diff(df.monthly_pension_recipients) + df.lumpsum_recipients[1:end-1])
+plot(df.date[1:end-1], q_path, label="q")
+
 ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
 
 df[!, :B] = df.fund_level_ntd ./ df.taiwan_registered_population ./ 100_000
 df[!, :Q] = df.labor_insurance_old_age_pension_recipients ./ df.taiwan_registered_population
+df[!, :q] = vcat(q_path, missing)
 B_path = df.B[3:ext_finance_date_id-1]
 Q_path = df.Q[3:ext_finance_date_id-1]
+q_path = df.q[3:ext_finance_date_id-1] .|> Float64
 X_path = collect.(zip(B_path, Q_path))
 
 Δ = 1/12
 begin
    p1 = plot(df.date[3:end-1], df.B[3:end-1], label = "", title="B")
    p2 = plot(df.date[3:end-1], df.Q[3:end-1], label = "", title="Q")
-   p3 = plot(df.date[3:end-1], diff(df.Q[3:end])/Δ/(para.b * exp(-para.n*para.T)), title="q", label="")
+   p3 = plot(df.date[3:end-1], df.q[3:end-1], title="q", label="")
    vline!.([p1, p2, p3], Ref([Date(2020)]), label="",  c=:brown)
    plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
 end
@@ -204,7 +234,7 @@ r0 = 0.02
 β0 = 2.0
 θ0 = [r0, log(σ0), α0, β0]
 
-optf = OptimizationFunction((θ, p) -> loss(θ), AutoFiniteDiff())
+optf = OptimizationFunction((θ, p) -> loss2(θ), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
 res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
@@ -243,7 +273,7 @@ Random.seed!(21)
 seeds = rand(UInt64, n_sim)
 ensemble_prob = EnsembleProblem(
         sde_prob, 
-        prob_func = (prob, ctx, repeat) -> remake(prob; seed = seeds[ctx])
+        prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
     )
 sol = solve(
         ensemble_prob,
@@ -253,15 +283,14 @@ sol = solve(
         callback = cb, 
         abstol = 1e-8
     )
-sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 1234)
+# sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 1234)
 
 # plot simulation
 begin
     times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
     p1 = plot(times, df.B[3:end], label = "data", title="B", xlims=(times[1], times[end]))
     p2 = plot(times, df.Q[3:end], label = "data", title="Q", xlims=(times[1], times[end]))
-    p3 = plot(times[1:end-1], diff(df.Q[3:end])/Δ/(para.b * exp(-para.n*para.T)), title="q", label = "data", xlims=(times[1], times[end]))
-    ts = range(0.0, sim.t[end], 300)
+    p3 = plot(times[1:end-1], df.q[3:end], title="q", label = "data", xlims=(times[1], times[end]))
     vline!.([p1, p2, p3], Ref([(findfirst(x->x==Date(2020), df.date[3:end])-1)/12]) , c=:brown, label="")
     
     sim_Bs = hcat([getindex.(sol(t), 1) for t in times]...)
@@ -285,7 +314,7 @@ Random.seed!(2026)
 seeds = rand(UInt64, n_sim)
 ensemble_prob = EnsembleProblem(
         sde_prob, 
-        prob_func = (prob, ctx, repeat) -> remake(prob; seed = seeds[ctx])
+        prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
     )
 sol = solve(
         ensemble_prob,
@@ -304,7 +333,7 @@ begin
     times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
     p1 = plot(times, df.B[3:end], label = "data", title="B", xlims=(times[1], times[end]))
     p2 = plot(times, df.Q[3:end], label = "data", title="Q", xlims=(times[1], times[end]))
-    p3 = plot(times[1:end-1], diff(df.Q[3:end])/Δ/(para.b * exp(-para.n*para.T)), title="q", label = "data", xlims=(times[1], times[end]))
+    p3 = plot(times[1:end-1], df.q[3:end], title="q", label = "data", xlims=(times[1], times[end]))
 
     vline!.([p1, p2, p3], Ref([(findfirst(x->x==Date(2020), df.date[3:end])-1)*Δ]) , c=:brown, label="")
 

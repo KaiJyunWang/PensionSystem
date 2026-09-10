@@ -1,7 +1,7 @@
-# Run with Julia's environment containing HighVoronoi, CSV, Roots and Interpolations.
+# Run with Julia's environment containing HighVoronoi, QuasiMonteCarlo, CSV and Roots.
 # Including this file defines helpers; running it directly solves the model and
 # writes nodal values and fitted values along the pre-finance data path to table/.
-using Roots, LogExpFunctions, CSV, DataFrames, Dates, Interpolations, Printf
+using Roots, LogExpFunctions, CSV, DataFrames, Dates, Printf
 include(joinpath(@__DIR__, "generator.jl"))
 
 """The economic model in stochastic_pension_run.jl, without its FD matrices."""
@@ -48,7 +48,7 @@ end
 """
 Generate QMC coordinates from continuous densities concentrated around the
 pre-finance data and B=0. See `data_voronoi_grid` for the density weights,
-bandwidth, boundary_scale, nB/nQ, and the tensor-product restriction.
+bandwidth, boundary_scale, npoints, and sampler options.
 """
 pension_voronoi_grid(X_path; para, kwargs...) = data_voronoi_grid(X_path; para, kwargs...)
 
@@ -59,18 +59,24 @@ G = M⁻¹ F M, the equivalent weighted adjoint is A = M⁻¹ G' M, M=diag(volum
 construct_backward_generator(V; para, grid) =
     sparse(adjoint(construct_forward_generator(V; para, grid, representation=:mass)))
 
-# Interpolate to the physical boundaries: V(0,Q)=0 and V_B(B_max,Q)=0.
-# Constant Q extension adds no artificial exterior Q slope.
+# Piecewise-linear interpolation on HighVoronoi's Delaunay dual. Outside the
+# domain use flat upper-B/Q extrapolation and linear continuation below B=0.
 function voronoi_value_interpolant(values, grid)
-    interior = reshape(values, length(grid.Bs), length(grid.Qs))
-    with_B = vcat(zeros(1, length(grid.Qs)), interior, interior[end:end, :])
-    with_Q = hcat(with_B[:, 1], with_B, with_B[:, end])
-    itp = interpolate((vcat(0.0, grid.Bs, grid.B_max), vcat(0.0, grid.Qs, grid.Q_max)),
-                      with_Q, Gridded(Linear()))
-    # Linear extrapolation continues the one-sided boundary slopes. This is
-    # constant above B_max and outside Q bounds because their slopes are zero;
-    # below B=0 it continues the first segment (and can return negative values).
-    return extrapolate(itp, Line())
+    length(values) == length(grid.nodes) || throw(DimensionMismatch("values must match nodes"))
+    nodal_values = copy(values)
+    function inside(B,Q)
+        owners,weights = scattered_weights(grid.mesh,B/grid.B_max,Q/grid.Q_max)
+        return sum(j == 0 ? 0.0 : w*nodal_values[j] for (j,w) in zip(owners,weights))
+    end
+    lower_reference = minimum(first.(grid.nodes))/2
+    function V(B,Q)
+        isfinite(B) && isfinite(Q) || throw(ArgumentError("nonfinite evaluation point"))
+        q = clamp(Q,0,grid.Q_max)
+        B == 0 && return 0.0
+        B < 0 && return B/lower_reference*inside(lower_reference,q)
+        return inside(min(B,grid.B_max),q)
+    end
+    return V
 end
 
 """
@@ -120,7 +126,7 @@ result = run_voronoi_pension(; ext_finance_date=Date(2020,1,1))
 V = result.solution.V
 V(0.08, 0.01)
 # Control smooth node concentration with, for example:
-# grid_options=(nB=96, nQ=64, bandwidth=(0.002,0.02), boundary_scale=0.005)
+# grid_options=(npoints=2048, sampler=SobolSample(), bandwidth=(0.002,0.02))
 # Use output_dir=nothing to solve without writing tables.
 # Pass model parameters via para=voronoi_model(r=0.02, σ=0.1).
 ```
@@ -144,13 +150,15 @@ function run_voronoi_pension(; para=voronoi_model(), ext_finance_date=Date(2020,
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    sol = run_voronoi_pension()
-    @printf "Solved %d Voronoi cells in %d iterations; residual %.3e\n" length(sol.solution.values) sol.solution.iterations sol.solution.residual
+    result = run_voronoi_pension()
+    @printf "Solved %d Voronoi cells in %d iterations; residual %.3e\n" length(result.solution.values) result.solution.iterations result.solution.residual
+    using Plots
+    Q_grids = range(0.0, 0.2, 201)
+    B_grids = range(0.0, 2.0, 201)
+    Vs = [result.solution.V(B, Q) for B in B_grids, Q in Q_grids]
+    surface(Q_grids, B_grids, Vs, c=:viridis, alpha=0.5)
+    contourf(Q_grids, B_grids, Vs, c=:viridis)
+    draw2D(result.solution.grid.geometry)
+    plot!(aspect_ratio=:auto, xlims=(0.0,result.solution.grid.B_max),
+        ylims=(0.0,result.solution.grid.Q_max),xlabel="B",ylabel="Q",size=(900,600))
 end
-
-result = run_voronoi_pension();
-Q_grids = range(0.0, result.para.Q_max, 201)
-B_grids = range(0.0, result.para.B_max, 201)
-Vs = [result.solution.V(B, Q) for B in B_grids, Q in Q_grids]
-surface(Q_grids, B_grids, Vs, c=:viridis, alpha=0.5)
-contourf(Q_grids, B_grids, Vs, c=:viridis)
