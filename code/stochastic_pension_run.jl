@@ -53,8 +53,64 @@ function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, Tw = 20, 
     fDQ = kron(fDQ, IB)
     bDQ = kron(bDQ, IB)
 
-    return (; b, m, T, r, ρ, p, l, τ, y, n, α, β, σ, q, μB, σB, μQ, B_max, Q_max, 
+    return (; b, m, T, Tw, Tm, r, ρ, p, l, τ, y, n, α, β, σ, q, μB, σB, μQ, B_max, Q_max, 
         fDB, bDB, DBB, fDQ, bDQ, Bs, Qs)
+end
+
+"""Write the calibrated parameters in `para` to a LaTeX table."""
+function write_parameter_table(para; output_path = "./table/parameters.tex")
+    external_calibration = [
+        (raw"$b$",    "Birth rate",                para.b,  "Total fertility rate"),
+        (raw"$m$",    "Mortality rate",            para.m,  "Median lifespan"),
+        (raw"$T_w$",  "Working age",               para.Tw, ""),
+        (raw"$T_r$",  "Retirement age",            para.T,  "Standard retirement age"),
+        (raw"$T_m$",  "Age of mortality exposure", para.Tm, ""),
+        (raw"$\rho$", "Subjective discount rate",  para.ρ,  "Interest rate"),
+        (raw"$\tau$", "Pension tax",               para.τ,  "Pension tax"),
+        (raw"$y$",    "Income",                    para.y,  "Highest monthly insured salary"),
+        (raw"$\ell$", "Lump-sum pension",          para.l,  "Transfer based on 30 years of working"),
+        (raw"$p$",    "Monthly pension",           para.p,  "Pension based on 30 years of working"),
+    ]
+    internal_calibration = [
+        (raw"$r$",       "Pension fund return rate",       para.r, ""),
+        (raw"$\sigma$", "Pension fund volatility",        para.σ, ""),
+        (raw"$\alpha$", "Preference for lump-sum scheme", para.α, ""),
+        (raw"$\beta$",  "Sensitivity to default risk",    para.β, ""),
+    ]
+
+    value_string(x) = x isa Integer ? string(x) : @sprintf("%.4g", x)
+    linebreak = repeat("\\", 2)
+
+    function write_panel(io, title, rows)
+        println(io, "        \\multicolumn{4}{l}{\\textit{", title, "}} ", linebreak)
+        println(io, raw"        \addlinespace")
+        for (symbol, description, value, target) in rows
+            println(io, "        ", symbol, " & ", description, " & \$",
+                value_string(value), "\$ & ", target, " ", linebreak)
+        end
+    end
+
+    open(output_path, "w") do io
+        println(io, raw"\begin{threeparttable}")
+        println(io, raw"    \begin{tabular}{clcl}")
+        println(io, raw"        \toprule")
+        println(io, "        Parameter & Description & Value & Target ", linebreak)
+        println(io, raw"        \midrule")
+        write_panel(io, "Panel A: External Calibration", external_calibration)
+        println(io, raw"        \addlinespace")
+        println(io, raw"        \midrule")
+        write_panel(io, "Panel B: Internal Calibration", internal_calibration)
+        println(io, raw"        \bottomrule")
+        println(io, raw"    \end{tabular}")
+        println(io)
+        println(io, raw"    \begin{tablenotes}[flushleft]")
+        println(io, raw"        \footnotesize")
+        println(io, raw"        \item \textit{Note:} The monetary unit in the model is 100,000 NTD.")
+        println(io, raw"    \end{tablenotes}")
+        println(io, raw"\end{threeparttable}")
+    end
+
+    return output_path
 end
 
 para = model()
@@ -255,8 +311,13 @@ prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
 res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
 
-# simulate the estimated model
+
 para_est = model(; r = res[1], σ = res[2], α = res[3], β = res[4])
+
+# output parameter table
+write_parameter_table(para_est)
+
+# simulate the estimated model
 V_est = solve_pde(para = para_est, iterations = 1000)
 
 Q_grids = range(0.0, para.Q_max, 301)
