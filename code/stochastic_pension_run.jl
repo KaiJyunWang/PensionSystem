@@ -99,6 +99,7 @@ function solve_kfe(Δ, m0; para, V)
     return expv(Δ, A', m0) |> (x -> reshape(x, length(para.Bs), length(para.Qs)))
 end
 
+#=
 V = solve_pde(; para = para)
 
 Q_grids = range(0.0, para.Q_max, 101)
@@ -146,7 +147,7 @@ begin
     p4 = plot(ts, sim_Vs, title = "V", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
     plt = plot(p1, p2, p3, p4, layout = (4, 1), size = (600, 1000))
 end
-
+=#
 
 #---------------------------------------
 # Estimation
@@ -218,12 +219,23 @@ Q_path = df.Q[3:ext_finance_date_id-1]
 q_path = df.q[3:ext_finance_date_id-1] .|> Float64
 X_path = collect.(zip(B_path, Q_path))
 
+# plot the recipients 
+begin
+    p1 = plot(df.date, df.q, label="", c=:black, title="Proportion of Monthly")
+    p2 = plot(df.date[1:end-1], diff(df.monthly_pension_recipients), label="Monthly", leg=:topright)
+    plot!(p2, df.date, df.lumpsum_recipients, label="Lumpsum", title="Number of New Recipients")
+    vline!.([p1, p2], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
+    plt = plot(p1, p2, layout=(2,1), size=(800, 600))
+    display(plt)
+    savefig(plt, "./figure/recipients.png")
+end
+
 Δ = 1/12
 begin
-   p1 = plot(df.date[3:end-1], df.B[3:end-1], label = "", title="B")
-   p2 = plot(df.date[3:end-1], df.Q[3:end-1], label = "", title="Q")
-   p3 = plot(df.date[3:end-1], df.q[3:end-1], title="q", label="")
-   vline!.([p1, p2, p3], Ref([Date(2020)]), label="",  c=:brown)
+   p1 = plot(df.date[3:end-1], df.B[3:end-1], label = "", title="B", c=:black)
+   p2 = plot(df.date[3:end-1], df.Q[3:end-1], label = "", title="Q", c=:black)
+   p3 = plot(df.date[3:end-1], df.q[3:end-1], title="q", label="", c=:black)
+   vline!.([p1, p2, p3], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
    plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
 end
 
@@ -252,6 +264,128 @@ begin
     plt = plot(p1, p2, layout=(1, 2), size=(800, 400))
     display(plt)
     savefig(plt, "./figure/estimated_V.png")
+end
+
+# validation for q 
+begin
+    plt = plot(df.date, df.q, title="q", label="Data", c=:black)
+    vline!(plt, [Date(2020)], label="",  c=:black, ls=:dash)    
+    plot!(plt, df.date, para_est.q.(V_est.(df.B, df.Q)), label="Model", c=:brown)
+    display(plt)
+    savefig(plt, "./figure/validation_q.png")
+end
+
+# simulation on the estimated parameters
+function drift_est!(du, u, p, t)
+    @unpack μB, μQ = p
+
+    du[1] = μB(u[1], u[2], V_est(u[1], u[2]))
+    du[2] = μQ(u[2], V_est(u[1], u[2]))
+end
+
+function diffusion_est!(du, u, p, t)
+    @unpack σB = p
+    du[1] = σB(u[1])
+    du[2] = 0.0
+end
+
+sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[3], df.Q[3]], (0.0, Δ * (length(df.B[3:end])-1)), para_est)
+n_sim = 20
+Random.seed!(21)
+seeds = rand(UInt64, n_sim)
+ensemble_prob = EnsembleProblem(
+        sde_prob, 
+        prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
+    )
+sol = solve(
+        ensemble_prob,
+        SRIW1(),
+        EnsembleThreads();
+        trajectories = n_sim, 
+        callback = cb, 
+        abstol = 1e-8
+    )
+# sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 1234)
+
+# plot simulation
+begin
+    times = 0.0:Δ:(length(df.date)-1)*Δ
+    dates = df.date
+    p1 = plot(dates, df.B, label = "Data", title="B", c=:black)
+    p2 = plot(dates, df.Q, label = "Data", title="Q", c=:black)
+    p3 = plot(dates, df.q, title="q", label = "Data", c=:black)
+    vline!.([p1, p2, p3], Ref([Date(2020)]) , c=:black, label="", ls=:dash)
+    
+    sim_Bs = hcat([getindex.(sol(t), 1) for t in times]...)
+    sim_Qs = hcat([getindex.(sol(t), 2) for t in times]...)
+    sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
+    for i in 1:n_sim 
+        lab = i==1 ? "Simulation" : ""
+        plot!(p1, dates, sim_Bs[i, :], label=lab, c=:brown)
+        plot!(p2, dates, sim_Qs[i, :], label=lab, c=:brown)
+        plot!(p3, dates, sim_qs[i, :], label=lab, c=:brown)
+    end
+    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
+    display(plt)
+    savefig(plt, "./figure/estimated_sim.png")
+end
+
+# simulation with no external finance 
+sim_horizon = times[findfirst(x->x==Date(2020), df.date[3:end])-1:end]
+sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[ext_finance_date_id-1], df.Q[ext_finance_date_id-1]], (sim_horizon[1], sim_horizon[end]), para_est)
+n_sim = 20
+Random.seed!(2026)
+seeds = rand(UInt64, n_sim)
+ensemble_prob = EnsembleProblem(
+        sde_prob, 
+        prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
+    )
+sol = solve(
+        ensemble_prob,
+        SRIW1(),
+        EnsembleThreads();
+        trajectories = n_sim, 
+        callback = cb, 
+        abstol = 1e-8
+    )
+
+sim_Bs = hcat([getindex.(sol(t), 1) for t in sim_horizon]...)
+sim_Qs = hcat([getindex.(sol(t), 2) for t in sim_horizon]...)
+sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
+
+begin
+    times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
+    dates = df.date[findfirst(x->x==Date(2020), df.date[3:end])-1:end]
+    p1 = plot(df.date, df.B, label = "Data", title="B", c=:black)
+    p2 = plot(df.date, df.Q, label = "Data", title="Q", c=:black)
+    p3 = plot(df.date, df.q, title="q", label = "Data", c=:black)
+
+    vline!.([p1, p2, p3], Ref([Date(2020)]) , c=:black, ls=:dash, label="")
+
+    for i in 1:n_sim 
+        lab = i==1 ? "Simulation" : ""
+        plot!(p1, dates, sim_Bs[i, :], label=lab, c=:brown)
+        plot!(p2, dates, sim_Qs[i, :], label=lab, c=:brown)
+        plot!(p3, dates, sim_qs[i, :], label=lab, c=:brown)
+    end
+    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
+    display(plt)
+    savefig(plt, "./figure/no_ext_finance.png")
+end
+
+# simulate the case for the case everyone choose lumpsum
+para_est = model(; r = res[1], σ = res[2], α = Inf, β = res[4])
+V_est = solve_pde(para = para_est, iterations = 1000)
+
+Q_grids = range(0.0, para.Q_max, 301)
+B_grids = range(0.0, para.B_max, 301)
+V_ests = [V_est(B, Q) for B in B_grids, Q in Q_grids]
+begin
+    p1 = surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
+    p2 = contourf(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", c=:viridis, levels = 20, lw = 0)
+    plt = plot(p1, p2, layout=(1, 2), size=(800, 400))
+    display(plt)
+    savefig(plt, "./figure/lumpsum_V.png")
 end
 # simulation on the estimated parameters
 function drift_est!(du, u, p, t)
@@ -287,62 +421,17 @@ sol = solve(
 
 # plot simulation
 begin
-    times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
-    p1 = plot(times, df.B[3:end], label = "data", title="B", xlims=(times[1], times[end]))
-    p2 = plot(times, df.Q[3:end], label = "data", title="Q", xlims=(times[1], times[end]))
-    p3 = plot(times[1:end-1], df.q[3:end], title="q", label = "data", xlims=(times[1], times[end]))
-    vline!.([p1, p2, p3], Ref([(findfirst(x->x==Date(2020), df.date[3:end])-1)/12]) , c=:brown, label="")
+    times = 0.0:Δ:(length(df.date)-1)*Δ
+    dates = df.date
+    plt = plot(dates, df.B, label = "Data", title="B", c=:black, ylims=(0.0, 0.8))
+    vline!(plt, [Date(2020)] , c=:black, label="", ls=:dash)
     
     sim_Bs = hcat([getindex.(sol(t), 1) for t in times]...)
-    sim_Qs = hcat([getindex.(sol(t), 2) for t in times]...)
-    sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
     for i in 1:n_sim 
-        plot!(p1, times, sim_Bs[i, :], label="", c=:orange)
-        plot!(p2, times, sim_Qs[i, :], label="", c=:orange)
-        plot!(p3, times, sim_qs[i, :], label="", c=:orange)
+        lab = i==1 ? "Simulation" : ""
+        plot!(plt, dates, sim_Bs[i, :], label=lab, c=:brown)
     end
-    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
     display(plt)
-    savefig(plt, "./figure/estimated_sim.png")
+    savefig(plt, "./figure/lumpsum_sim.png")
 end
 
-# simulation with no external finance 
-sim_horizon = times[findfirst(x->x==Date(2020), df.date[3:end])-1:end]
-sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[ext_finance_date_id-1], df.Q[ext_finance_date_id-1]], (sim_horizon[1], sim_horizon[end]), para_est)
-n_sim = 20
-Random.seed!(2026)
-seeds = rand(UInt64, n_sim)
-ensemble_prob = EnsembleProblem(
-        sde_prob, 
-        prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
-    )
-sol = solve(
-        ensemble_prob,
-        SRIW1(),
-        EnsembleThreads();
-        trajectories = n_sim, 
-        callback = cb, 
-        abstol = 1e-8
-    )
-
-sim_Bs = hcat([getindex.(sol(t), 1) for t in sim_horizon]...)
-sim_Qs = hcat([getindex.(sol(t), 2) for t in sim_horizon]...)
-sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
-
-begin
-    times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
-    p1 = plot(times, df.B[3:end], label = "data", title="B", xlims=(times[1], times[end]))
-    p2 = plot(times, df.Q[3:end], label = "data", title="Q", xlims=(times[1], times[end]))
-    p3 = plot(times[1:end-1], df.q[3:end], title="q", label = "data", xlims=(times[1], times[end]))
-
-    vline!.([p1, p2, p3], Ref([(findfirst(x->x==Date(2020), df.date[3:end])-1)*Δ]) , c=:brown, label="")
-
-    for i in 1:n_sim 
-        plot!(p1, sim_horizon, sim_Bs[i, :], label="", c=:orange)
-        plot!(p2, sim_horizon, sim_Qs[i, :], label="", c=:orange)
-        plot!(p3, sim_horizon, sim_qs[i, :], label="", c=:orange)
-    end
-    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
-    display(plt)
-    savefig(plt, "./figure/no_ext_finance.png")
-end
