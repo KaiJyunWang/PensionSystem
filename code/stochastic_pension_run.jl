@@ -6,8 +6,8 @@ using Statistics, SparseArrays, ExponentialAction
 using Optimization, OptimizationOptimJL, Random
 using CSV, DataFrames, Dates
 
-function model(; b = 0.00462, m = 0.058, T = 65, r = 0.04, p = 2.556, 
-    l = 20.61, τ = 0.125, y = 5.496, α = -1.0, β = 3.0, ρ = 0.02, σ = 0.08, B_max = 10.0)
+function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, 
+    l = 20.61, τ = 0.125, y = 5.496, α = -7.752, β = 2.623, ρ = 0.02, σ = 0.083, B_max = 10.0)
     # find population growth rate 
     n = find_zero(n -> (-expm1(-n * T)) / n + exp(-n * T) / (n + m) - 1 / b, (-m+ 1e-8, -1e-8))
 

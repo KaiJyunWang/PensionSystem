@@ -1,93 +1,5 @@
 using LinearAlgebra, SparseArrays, Statistics, HighVoronoi, QuasiMonteCarlo
 
-# Stable logistic CDF, avoiding a new dependency in the generator helper.
-_logistic_cdf(x) = x >= 0 ? 1 / (1 + exp(-x)) : exp(x) / (1 + exp(x))
-
-"""
-    smooth_node_density(samples; bandwidth, data_weight, boundary_weight, boundary_scale)
-
-Continuous density on normalized [0,1]: a mixture of equally weighted,
-individually truncated logistic kernels at the observations, a truncated
-exponential concentrated at zero, and a uniform coverage component.
-Returns `pdf` and `cdf`. No clipping or rejection sampling is used.
-"""
-function smooth_node_density(samples; bandwidth, data_weight, boundary_weight, boundary_scale)
-    isempty(samples) && throw(ArgumentError("density needs observations"))
-    all(x -> isfinite(x) && 0 <= x <= 1, samples) || throw(ArgumentError("invalid normalized observations"))
-    isfinite(bandwidth) && 1e-8 <= bandwidth <= 1 || throw(ArgumentError("bandwidth must be in [1e-8,1]"))
-    isfinite(boundary_scale) && 1e-8 <= boundary_scale <= 1 || throw(ArgumentError("boundary_scale must be in [1e-8,1]"))
-    all(isfinite, (data_weight, boundary_weight)) && data_weight >= 0 && boundary_weight >= 0 &&
-        data_weight + boundary_weight <= 1 || throw(ArgumentError("weights must be nonnegative and sum to at most one"))
-    lower = [_logistic_cdf(-c / bandwidth) for c in samples]
-    normalizers = [_logistic_cdf((1-c) / bandwidth) - lo for (c,lo) in zip(samples,lower)]
-    coverage_weight = 1 - data_weight - boundary_weight
-    exponential_norm = -expm1(-1 / boundary_scale)
-    function cdf(x)
-        x <= 0 && return 0.0
-        x >= 1 && return 1.0
-        kernel = sum((_logistic_cdf((x-c)/bandwidth)-lo)/z
-                     for (c,lo,z) in zip(samples,lower,normalizers)) / length(samples)
-        return coverage_weight*x + data_weight*kernel +
-               boundary_weight*(-expm1(-x/boundary_scale))/exponential_norm
-    end
-    function pdf(x)
-        (x < 0 || x > 1) && return 0.0
-        kernel = sum(begin
-            t = exp(-abs((x-c)/bandwidth))
-            t / ((1+t)^2 * bandwidth * z)
-        end for (c,z) in zip(samples,normalizers)) / length(samples)
-        return coverage_weight + data_weight*kernel +
-               boundary_weight*exp(-x/boundary_scale)/(boundary_scale*exponential_norm)
-    end
-    return (; pdf, cdf)
-end
-
-# Monotone inverse CDF: the uniform mixture makes the inverse unique.
-function density_quantile(cdf, u)
-    0 < u < 1 || throw(ArgumentError("quantile probability must be strictly interior"))
-    lo, hi = 0.0, 1.0
-    for _ in 1:60
-        mid = (lo + hi) / 2
-        if cdf(mid) < u
-            lo = mid
-        else
-            hi = mid
-        end
-    end
-    return (lo + hi) / 2
-end
-
-"""
-Joint bounded KDE plus a lower-B exponential layer and uniform coverage.
-The Rosenblatt map first inverts the B marginal, then the conditional Q CDF.
-Each KDE component is centered on an observed PAIR, preserving dependence.
-All scales refer to normalized coordinates in [0,1]^2.
-"""
-function joint_node_density(observations; bandwidth, data_weight, boundary_weight, boundary_scale)
-    data_weight + boundary_weight < 1 || throw(ArgumentError("joint density needs a positive uniform coverage weight"))
-    marginal = smooth_node_density(first.(observations); bandwidth=bandwidth[1],
-        data_weight, boundary_weight, boundary_scale)
-    kernels = [ntuple(d -> smooth_node_density([x[d]]; bandwidth=bandwidth[d],
-        data_weight=1.0, boundary_weight=0.0, boundary_scale), 2) for x in observations]
-    kernel_pdf(k,x) = k.pdf(x)
-    kernel_cdf(k,x) = k.cdf(x)
-    function conditional(B)
-        weights = [data_weight/length(kernels)*kernel_pdf(k[1],B) for k in kernels]
-        uniform = 1-data_weight-boundary_weight + boundary_weight*exp(-B/boundary_scale)/
-                  (boundary_scale*(-expm1(-1/boundary_scale)))
-        normalizer = uniform + sum(weights)
-        cdf(Q) = (uniform*Q + sum(w*kernel_cdf(k[2],Q) for (w,k) in zip(weights,kernels)))/normalizer
-        return cdf
-    end
-    function pdf(B,Q)
-        (0 <= B <= 1 && 0 <= Q <= 1) || return 0.0
-        return 1-data_weight-boundary_weight +
-            boundary_weight*exp(-B/boundary_scale)/(boundary_scale*(-expm1(-1/boundary_scale))) +
-            data_weight/length(kernels)*sum(kernel_pdf(k[1],B)*kernel_pdf(k[2],Q) for k in kernels)
-    end
-    return (; pdf, B_cdf=marginal.cdf, conditional_Q_cdf=conditional)
-end
-
 # Build the Delaunay dual of a HighVoronoi mesh for barycentric interpolation.
 # Auxiliary edge sites close the rectangular convex hull; they are not states.
 function scattered_interpolation_mesh(points; nedge)
@@ -154,15 +66,13 @@ function scattered_weights(mesh,B,Q)
 end
 
 """
-    data_voronoi_grid(X_path; para, npoints=2048, sampler=SobolSample(),
-        bandwidth=(0.002,0.02), data_weight=0.6, boundary_weight=0.25,
-        boundary_scale=0.005, stencil_scale=0.5)
+    data_voronoi_grid(X_path=nothing; para, npoints=2048, stencil_scale=0.5)
 
-Draw a 2×npoints design with QuasiMonteCarlo.jl and map each column through
-inverse B and conditional-Q CDFs of a smooth JOINT density. The result contains
-exactly npoints scattered states, not a tensor product. Use npoints=2^k for
-Sobol designs. `sampler` can also be `HaltonSample()` or a randomized sampler.
-Zero/one sampler endpoints are moved by machine epsilon into the interior.
+Draw a uniform two-dimensional Sobol design with QuasiMonteCarlo.jl and scale
+it directly from `[0,1]^2` to `[0,B_max] × [0,Q_max]`. The result contains
+exactly `npoints` scattered states, not a tensor product. Use `npoints=2^k` to
+retain the balance properties of a Sobol net. `X_path` is accepted only for
+compatibility with earlier data-adapted versions and does not affect the nodes.
 
 HighVoronoi supplies cell volumes and the Delaunay dual used for piecewise
 linear interpolation. Boundary interpolation sites are auxiliary, not states.
@@ -172,29 +82,14 @@ normalized reach, proportional to npoints^(-1/4); interpolation introduces
 numerical diffusion at finite resolution. Refine nodes AND stencil reach when
 checking accuracy. No exact rank-one covariance is claimed on a finite mesh.
 """
-function data_voronoi_grid(X_path; para,npoints=2048,sampler=SobolSample(),
-        bandwidth=(0.002,0.02),data_weight=0.6,boundary_weight=0.25,
-        boundary_scale=0.005,stencil_scale=0.5)
+function data_voronoi_grid(X_path=nothing; para,npoints=2048,stencil_scale=0.5)
     npoints isa Integer && npoints >= 16 || throw(ArgumentError("npoints must be an integer at least 16"))
     isfinite(stencil_scale) && 0 < stencil_scale <= 1 || throw(ArgumentError("invalid stencil_scale"))
-    observations = X_path isa AbstractMatrix ? collect(eachcol(X_path)) : collect(X_path)
-    isempty(observations) && throw(ArgumentError("X_path is empty"))
-    all(x -> length(x)==2 && all(isfinite,x),observations) || throw(ArgumentError("invalid observations"))
     limits = [Float64(para.B_max),Float64(para.Q_max)]
     all(x -> isfinite(x) && x>0,limits) || throw(ArgumentError("invalid domain"))
-    all(x -> all(0 <= x[d] <= limits[d] for d in 1:2),observations) || throw(ArgumentError("observations outside domain"))
-    widths = bandwidth isa Real ? (bandwidth,bandwidth) : bandwidth
-    length(widths)==2 || throw(ArgumentError("bandwidth must have two components"))
-    density = joint_node_density([x./limits for x in observations];bandwidth=widths,
-        data_weight,boundary_weight,boundary_scale)
-    design = QuasiMonteCarlo.sample(npoints,2,sampler)
+    design = QuasiMonteCarlo.sample(npoints,2,SobolSample())
     all(x -> isfinite(x) && 0 <= x <= 1,design) || throw(ArgumentError("sampler must return points in [0,1]^2"))
-    points = zeros(2,npoints)
-    for i in 1:npoints
-        B = density_quantile(density.B_cdf,clamp(design[1,i],eps(),1-eps()))
-        Q = density_quantile(density.conditional_Q_cdf(B),clamp(design[2,i],eps(),1-eps()))
-        points[:,i] = [B,Q]
-    end
+    points = clamp.(design,eps(),1-eps())
     length(Set(Tuple.(eachcol(points)))) == npoints || throw(ArgumentError("sampler produced duplicate nodes"))
     physical = points .* limits
     geometry = VoronoiGeometry(VoronoiNodes(physical),
@@ -223,7 +118,7 @@ function data_voronoi_grid(X_path; para,npoints=2048,sampler=SobolSample(),
             scattered_weights(mesh,x...)
         end
     end
-    return (;geometry,data,nodes=data.nodes,volumes,points,design,density,mesh,stencils,distances,
+    return (;geometry,data,nodes=data.nodes,volumes,points,design,mesh,stencils,distances,
         B_max=limits[1],Q_max=limits[2])
 end
 

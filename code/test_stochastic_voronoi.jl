@@ -8,7 +8,7 @@ include("stochastic_voronoi_run.jl")
     @test last(observations.sample.date) == Date(2019,12,1)
     @test all(<(Date(2020,1,1)),observations.sample.date)
     grid = pension_voronoi_grid(observations.X_path;para,npoints=128)
-    @test count(x -> x[1]<minimum(first.(observations.X_path)),grid.nodes) > 10
+    @test grid.points == QuasiMonteCarlo.sample(128,2,SobolSample())
     result = solve_voronoi_pde(;para,grid,verbose=false)
     @test result.residual <= 1e-8
     @test minimum(result.values) >= 0

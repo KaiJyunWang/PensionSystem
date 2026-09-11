@@ -46,9 +46,8 @@ function load_voronoi_data(; path=joinpath(@__DIR__, "..", "data", "labor_insura
 end
 
 """
-Generate QMC coordinates from continuous densities concentrated around the
-pre-finance data and B=0. See `data_voronoi_grid` for the density weights,
-bandwidth, boundary_scale, npoints, and sampler options.
+Generate a uniform two-dimensional Sobol design over the model domain.
+`X_path` is retained in the interface but does not affect node placement.
 """
 pension_voronoi_grid(X_path; para, kwargs...) = data_voronoi_grid(X_path; para, kwargs...)
 
@@ -125,8 +124,7 @@ include("stochastic_voronoi_run.jl")
 result = run_voronoi_pension(; ext_finance_date=Date(2020,1,1))
 V = result.solution.V
 V(0.08, 0.01)
-# Control smooth node concentration with, for example:
-# grid_options=(npoints=2048, sampler=SobolSample(), bandwidth=(0.002,0.02))
+# Control mesh size with, for example: grid_options=(npoints=2048,)
 # Use output_dir=nothing to solve without writing tables.
 # Pass model parameters via para=voronoi_model(r=0.02, σ=0.1).
 ```
@@ -150,15 +148,21 @@ function run_voronoi_pension(; para=voronoi_model(), ext_finance_date=Date(2020,
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    result = run_voronoi_pension()
+    result = run_voronoi_pension();
     @printf "Solved %d Voronoi cells in %d iterations; residual %.3e\n" length(result.solution.values) result.solution.iterations result.solution.residual
-    using Plots
-    Q_grids = range(0.0, 0.2, 201)
-    B_grids = range(0.0, 2.0, 201)
-    Vs = [result.solution.V(B, Q) for B in B_grids, Q in Q_grids]
-    surface(Q_grids, B_grids, Vs, c=:viridis, alpha=0.5)
-    contourf(Q_grids, B_grids, Vs, c=:viridis)
+end
+
+# plot functionals for visualization
+#=
+using Plots
+Q_grids = range(0.0, result.para.Q_max, 201)
+B_grids = range(0.0, result.para.B_max, 201)
+Vs = [result.solution.V(B, Q) for B in B_grids, Q in Q_grids]
+surface(Q_grids, B_grids, Vs, c=:viridis, alpha=0.5)
+contourf(Q_grids, B_grids, Vs, c=:viridis)
+begin 
     draw2D(result.solution.grid.geometry)
     plot!(aspect_ratio=:auto, xlims=(0.0,result.solution.grid.B_max),
         ylims=(0.0,result.solution.grid.Q_max),xlabel="B",ylabel="Q",size=(900,600))
 end
+=#
