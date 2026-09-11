@@ -157,6 +157,15 @@ function solve_kfe(Δ, m0; para, V)
     return expv(Δ, A', m0) |> (x -> reshape(x, length(para.Bs), length(para.Qs)))
 end
 
+cb = ContinuousCallback(
+    (u, t, integrator) -> u[1],  
+    nothing,
+    (integrator) -> begin
+        terminate!(integrator)
+    end, 
+    save_positions = (true, true)
+)
+
 #=
 V = solve_pde(; para = para)
 
@@ -210,11 +219,6 @@ end
 #---------------------------------------
 # Estimation
 
-# generated data
-
-times = 0.0:1/12:15.0 |> collect
-X_path = sim.(times)
-
 # Least Square + Euler-Maruyama
 # S is the decomposition such that W = S'S.
 function loss(θ; B_path = B_path, Q_path = Q_path, S = I, Δ = 1/12)
@@ -245,10 +249,10 @@ function loss2(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ 
 
     σ_target = std(μB_targets) / sqrt(Δ) - para.σ
     μB_mean = mean(μB_targets) - mean(Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1])
-    q_mean = mean(para.q.(V.(B_path[1:end-1], Q_path[1:end-1])) - q_path[1:end-1])
-    q_sd = std(para.q.(V.(B_path[1:end-1], Q_path[1:end-1]))) - std(q_path[1:end-1])
+    q_mean = para.q.(V.(B_path[1:end-1], Q_path[1:end-1])) - q_path[1:end-1]
+    #q_sd = std(para.q.(V.(B_path[1:end-1], Q_path[1:end-1]))) - std(q_path[1:end-1])
 
-    ms = vcat(μB_mean, σ_target, q_mean, q_sd)
+    ms = vcat(μB_mean, σ_target, q_mean)
     # μBs = Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1]
     # μQ_std_targets = std(μQ_targets)
     # μQ_stds = std(para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
@@ -302,7 +306,7 @@ end
 # initial guesses
 r0 = 0.02
 σ0 = 0.1
-α0 = 0.0
+α0 = -3.0
 β0 = 2.0
 θ0 = [r0, log(σ0), α0, β0]
 
@@ -310,7 +314,6 @@ optf = OptimizationFunction((θ, p) -> loss2(θ), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
 res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
-
 
 para_est = model(; r = res[1], σ = res[2], α = res[3], β = res[4])
 
