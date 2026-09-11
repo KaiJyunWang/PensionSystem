@@ -6,16 +6,18 @@ using Statistics, SparseArrays, ExponentialAction
 using Optimization, OptimizationOptimJL, Random
 using CSV, DataFrames, Dates
 
-function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, 
-    l = 20.61, τ = 0.125, y = 5.496, α = -7.752, β = 2.623, ρ = 0.02, σ = 0.083, B_max = 10.0)
+function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, Tw = 20, Tm = 65,
+    l = 20.61, τ = 0.115, y = 5.496, α = -7.752, β = 2.623, ρ = 0.02, σ = 0.083, B_max = 10.0)
     # find population growth rate 
-    n = find_zero(n -> (-expm1(-n * T)) / n + exp(-n * T) / (n + m) - 1 / b, (-m+ 1e-8, -1e-8))
+    n = find_zero(n -> (-expm1(-n * Tm)) / n + exp(-n * Tm) / (n + m) - 1 / b, (-m+ 1e-8, -1e-8))
 
     # auxilary functions
-    q(V) = V == 0 ? logistic(-α / β) : logistic(-(α + l - V) / β)
-    μB(B, Q, V) = (r-n) * B + b * τ * y / n * (exp(-n * 20)-exp(-n * T)) - (1 - q(V)) * b * exp(-n * T) * l - p * Q
+    g(s) = s < Tm ? b * exp(-n * s) : b * exp(-n * s - m * (s - Tm)) 
+    labor_force = b * ((exp(-n*Tw) - exp(-n*Tm))/n + exp(m*Tm) * (exp(-(m+n)*Tm) - exp(-(m+n)*T)) / (m+n))
+    q(V) = V ≤ 0 ? logistic(-α / β) : logistic(-(α + l - V) / β)
+    μB(B, Q, V) = (r-n) * B + b * τ * y * labor_force - (1 - q(V)) * g(T) * l - p * Q
     σB(B) = σ * B
-    μQ(Q, V) = q(V) * b * exp(-n * T) - (m+n) * Q
+    μQ(Q, V) = q(V) * g(T) - (m+n) * Q
 
     Q_max = b * exp(-n * T) / (m + n) 
 
@@ -221,9 +223,9 @@ X_path = collect.(zip(B_path, Q_path))
 
 # plot the recipients 
 begin
-    p1 = plot(df.date, df.q, label="", c=:black, title="Proportion of Monthly")
-    p2 = plot(df.date[1:end-1], diff(df.monthly_pension_recipients), label="Monthly", leg=:topright)
-    plot!(p2, df.date, df.lumpsum_recipients, label="Lumpsum", title="Number of New Recipients")
+    p1 = plot(df.date[3:end], df.q[3:end], label="", c=:black, title="Proportion of Monthly")
+    p2 = plot(df.date[3:end-1], diff(df.monthly_pension_recipients)[3:end], label="Monthly", leg=:topright)
+    plot!(p2, df.date[3:end-1], df.lumpsum_recipients[3:end-1], label="Lumpsum", title="Number of New Recipients")
     vline!.([p1, p2], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
     plt = plot(p1, p2, layout=(2,1), size=(800, 600))
     display(plt)
@@ -232,11 +234,13 @@ end
 
 Δ = 1/12
 begin
-   p1 = plot(df.date[3:end-1], df.B[3:end-1], label = "", title="B", c=:black)
-   p2 = plot(df.date[3:end-1], df.Q[3:end-1], label = "", title="Q", c=:black)
-   p3 = plot(df.date[3:end-1], df.q[3:end-1], title="q", label="", c=:black)
-   vline!.([p1, p2, p3], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
-   plt = plot(p1, p2, p3, layout = (3, 1), size = (600, 1000))
+   p1 = plot(df.date[3:end-1], df.B[3:end-1], label = "", title="Fund Level per Capita (100,000 NTD)", c=:black)
+   p2 = plot(df.date[3:end-1], df.Q[3:end-1], label = "", title="Recipients/Population", c=:black)
+   #p3 = plot(df.date[3:end-1], df.q[3:end-1], title="q", label="", c=:black)
+   vline!.([p1, p2], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
+   plt = plot(p1, p2, layout = (2, 1), size = (800, 600))
+   display(plt)
+   savefig(plt, "./figure/state_data.png")
 end
 
 # initial guesses

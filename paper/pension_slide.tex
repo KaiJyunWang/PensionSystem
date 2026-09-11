@@ -1,4 +1,4 @@
-\documentclass[10pt, aspectratio=169]{beamer}
+\documentclass[11pt, aspectratio=169]{beamer}
 \input{symbols_pension.tex}
 
 \usetheme[progressbar = none, 
@@ -13,8 +13,10 @@
 \usepackage{pgfplots}
 \usepgfplotslibrary{dateplot}
 
+\usepackage{graphicx}
 \usepackage{xspace}
 \usepackage{hyperref}
+\usepackage[natbibapa]{apacite}
 \usepackage{mleftright}
 \usepackage[nameinlink]{cleveref}
 \usepackage{amsmath, amssymb, algorithm, algorithmicx, algpseudocode}
@@ -28,8 +30,210 @@
 
 \maketitle
 
-\begin{frame}{Introduction}
-    
+\begin{frame}{Motivation}
+    \begin{itemize}
+        \item How does the potential reform of the pension system affect the retirement decisions?
+        \begin{itemize}
+            \item[-] Retire later to accumulate more wealth.
+            \item[-] Retire earlier to withdraw more pension. 
+            \item[-] Reform Uncertainty.
+            \item[-] Run on the pension system.   
+        \end{itemize}
+        \item Related literature: 
+        \begin{itemize}
+            \item[-] \textbf{Pension reform}: \cite{french2011, kitao2018,huixin2023, daminato2024, delalibera2026}. 
+            \item[-] \textbf{Bank run}: \cite{goldstein2005, he2012}.
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Background}
+    \begin{itemize}
+        \item Since 2009, one with insurance records before 2009 can 
+        choose between lumpsum and monthly scheme. 
+        \item For a recipient with average monthly insured salary NTD $45,800$ 
+        with 30 years of working retired at standard retirement age and lives 12 
+        years after retirement. 
+        \begin{itemize}
+            \item[-] Lumpsum: $2,061,000$ NTD.
+            \item[-] Monthly: $2,724,504$ NTD. ($2\%$ annual rate)
+        \end{itemize}
+        \item Reform information shocks: 
+        \begin{itemize}
+            \item[-] Reform commitee established in 2012.
+            \item[-] Reform on Civil Servant Retirement Pension in 2017.  
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Data}
+    \centering 
+    \includegraphics[scale=0.35]{../figure/state_data.png}
+\end{frame}
+
+\begin{frame}{Data}
+    \centering
+    \includegraphics[scale=0.35]{../figure/recipients.png}
+\end{frame}
+
+\section{Model}
+
+\begin{frame}{Model Overview}
+    \begin{itemize}
+        \item Continuous time and an infinite horizon.
+        \item A continuum of workers chooses once, at retirement age $T$,
+        between a lump-sum benefit $\ell$ and a monthly pension $p$.
+        \item The pension fund earns a stochastic return and receives payroll
+        tax revenue.
+        \item Benefits stop when the fund balance reaches zero.
+        \item Retirees' choices affect fund outflows and, consequently, the
+        value of the monthly pension.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Population}
+    Let $g(t,s)$ denote the population density at age $s$:
+    \begin{equation*}
+        \frac{\partial g}{\partial t}
+        =-\underbrace{\frac{\partial g}{\partial s}}_{\text{aging}}
+        -\underbrace{m(s)g}_{\text{mortality}}
+        +\underbrace{\int b(s)g(t,s)\,ds\,\delta_0}_{\text{birth}}.
+    \end{equation*}
+    Assume $b(s)=b$ and $m(s)=m\mathbf{1}\{s\geq T_m\}$. In a steady-age
+    distribution, $N_t$ grows at rate $n$ and
+    \begin{equation*}
+        \hat g(s)=
+        \begin{cases}
+            be^{-ns}, & s<T_m,\\
+            be^{-ns}e^{-m(s-T_m)}, & s\geq T_m,
+        \end{cases}
+    \end{equation*}
+    where
+    \begin{equation*}
+        1=b\frac{1-e^{-nT_m}}{n}+be^{-nT_m}\frac{1}{n+m}.
+    \end{equation*}
+\end{frame}
+
+\begin{frame}{Pension System}
+    Let $q_t$ be the share of new retirees choosing the monthly pension and
+    $Q_t$ the stock of monthly-benefit recipients. For $T\geq T_m$,
+    \begin{equation*}
+        dQ_t=\left[
+        \underbrace{q_t\hat g(T)N_t}_{\text{new retirees}}
+        -\underbrace{mQ_t}_{\text{mortality}}\right]dt.
+    \end{equation*}
+    The pension fund balance evolves according to
+    \small
+    \begin{align*}
+        dB_t={}&\left[
+        \underbrace{rB_t}_{\text{interest}}
+        +\underbrace{\tau yN_t\int_{T_w}^{T}\hat g(s)\,ds}_{\text{pension tax}}
+        -\underbrace{(1-q_t)\ell N_t\hat g(T)}_{\text{lump sum}}
+        -\underbrace{pQ_t}_{\text{monthly}}\right]dt\\
+        &
+        +\sigma B_t\,dZ_t.
+    \end{align*}
+    \normalsize
+    The system is bankrupt when $B_t$ first reaches zero.
+\end{frame}
+
+\begin{frame}{Detrended State Dynamics}
+    Define fund balance and recipients per capita by
+    $\hat B_t=B_t/N_t$ and $\hat Q_t=Q_t/N_t$. Then
+    \small
+    \begin{align*}
+        d\hat B_t={}&\left[
+        \underbrace{(r-n)\hat B_t}_{\text{net return}}
+        +\underbrace{\tau y\int_{T_w}^{T}\hat g(s)\,ds}_{\text{pension tax}}
+        -\underbrace{(1-q_t)\hat g(T)\ell}_{\text{lump sum}}
+        -\underbrace{p\hat Q_t}_{\text{monthly}}\right]dt
+        +\sigma\hat B_t\,dZ_t,\\
+        d\hat Q_t={}&\left[
+        \underbrace{q_t\hat g(T)}_{\text{new retirees}}
+        -\underbrace{(m+n)\hat Q_t}_{\text{mortality}}\right]dt.
+    \end{align*}
+    \normalsize
+    \begin{itemize}
+        \item More lump-sum claims reduce the fund immediately.
+        \item More monthly claims raise future liabilities through $\hat Q_t$.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Individual Pension Choice}
+    A retiring individual chooses $d\in\{\ell,p\}$ with utility
+    \begin{equation*}
+        u_{it}(d)=
+        \begin{cases}
+            \alpha+\ell+\beta\epsilon_i(\ell), & d=\ell,\\
+            V(\hat B_t,\hat Q_t)+\beta\epsilon_i(p), & d=p.
+        \end{cases}
+    \end{equation*}
+    The value of monthly benefits is
+    \begin{equation*}
+        V(\hat B,\hat Q)
+        =\mathbb E\left[\left.\int_0^{T_{\hat B}}
+        e^{-(\rho+m)s}p\,ds\,\right|\,\hat B,\hat Q\right].
+    \end{equation*}
+    With i.i.d.\ standard Gumbel $\epsilon_i$, the monthly-benefit 
+    recipient share is
+    \begin{equation*}
+        q(\hat B,\hat Q)
+        =\frac{1}{1+\exp\left(\frac{\alpha+\ell-V(\hat B,\hat Q)}{\beta}\right)}.
+    \end{equation*}
+\end{frame}
+
+\begin{frame}{Equilibrium and Main Mechanisms}
+    In a Markov equilibrium:
+    \begin{enumerate}
+        \item State dynamics are consistent with retirees' choice $q$.
+        \item The value $V$ is consistent with the induced bankruptcy time.
+        \item Individual choices aggregate to $q(\hat B,\hat Q)$.
+    \end{enumerate}
+    \begin{block}{Two Externalities}
+        \begin{enumerate}
+            \item Low $\hat{Q}$ $\longrightarrow$ far bankruptcy time $\longrightarrow$ monthly dominates $\longrightarrow$ {\color{red}add stress on the pension fund}.
+            \item High $\hat{Q}$ $\longrightarrow$ near bankruptcy time $\longrightarrow$ lumpsum dominates $\longrightarrow$ {\color{red}accelerate bankruptcy}.
+        \end{enumerate}
+    \end{block}
+\end{frame}
+
+\begin{frame}{Value Function and Numerical Solution}
+    The monthly-pension value solves the nonlinear HJB equation
+    \begin{equation*}
+        (\rho+m)V=p+\mathcal A V,
+        \qquad V(0,\hat Q)=0,
+    \end{equation*}
+    where
+    \begin{equation*}
+        \mathcal A
+        =\mu_B\frac{\partial}{\partial \hat B}
+        +\mu_Q\frac{\partial}{\partial \hat Q}
+        +\frac{1}{2}\sigma^2\hat B^2
+        \frac{\partial^2}{\partial \hat B^2}.
+    \end{equation*}
+    \begin{itemize}
+        \item Nonlinearity arises because $\mu_B$ and $\mu_Q$ depend on
+        $q$, which depends on $V$.
+        \item At a sufficiently large upper boundary, impose
+        $\partial V/\partial\hat B\approx0$.
+        \item Solve by finite differences and successive iteration, 
+        equivalent to semi-implicit scheme with $dt = \infty$. 
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{To Do}
+    \begin{itemize}
+        \item Relax the mortality assumption. 
+        \item Belief process. 
+        \item Endogenous retirement. 
+        \item Regime switch in fund return. 
+    \end{itemize}
+\end{frame}
+
+\begin{frame}<0>[allowframebreaks]{References}
+    \bibliographystyle{apacite}
+    \bibliography{pension}
 \end{frame}
 
 \end{document}
