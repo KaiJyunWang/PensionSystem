@@ -38,8 +38,8 @@ function write_parameter_table(para; output_path = "./table/parameters.tex", pan
     internal_calibration = panel == :A ? [] : [
         (raw"$r$",       "Pension fund return rate",       para.r, raw"$\E\sbrc{\frac{\hat{B}_{t+\Delta}-\hat{B}_t}{B_t}-\mu_{B}(\hat{B}_t, \hat{Q}_t, \theta)\Delta} = 0$"),
         (raw"$\sigma$", "Pension fund volatility",        para.σ, raw"$\text{SD}(\frac{\hat{B}_{t+\Delta}-\hat{B}_t}{B_t\sqrt{\Delta}}) = \sigma$"),
-        (raw"$\alpha$", "Preference for lump-sum scheme", para.α, raw"\E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2}"),
-        (raw"$\beta$",  "Sensitivity to default risk",    para.β, raw"\E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2}"),
+        (raw"$\alpha$", "Preference for lump-sum scheme", para.α, raw"$\E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2}$"),
+        (raw"$\beta$",  "Sensitivity to default risk",    para.β, raw"$\E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2}$"),
     ]
 
     value_string(x) = x isa Integer ? string(x) : @sprintf("%.4g", x)

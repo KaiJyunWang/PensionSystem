@@ -19,10 +19,10 @@
         \midrule
         \multicolumn{4}{l}{\textit{Panel B: Internal Calibration}} \\
         \addlinespace
-        $r$ & Pension fund return rate & $-0.1293$ & Mean relative fund growth \\
-        $\sigma$ & Pension fund volatility & $0.0866$ & Std. of relative fund growth divided by $\sqrt{\Delta}$ \\
-        $\alpha$ & Preference for lump-sum scheme & $-18.63$ & Monthly-pension choice share time series \\
-        $\beta$ & Sensitivity to default risk & $1.221$ & Monthly-pension choice share time series \\
+        $r$ & Pension fund return rate & $-0.1293$ & $\E\sbrc{\frac{\hat{B}_{t+\Delta}-\hat{B}_t}{B_t}-\mu_{B}(\hat{B}_t, \hat{Q}_t, \theta)\Delta} = 0$ \\
+        $\sigma$ & Pension fund volatility & $0.0866$ & $\text{SD}(\frac{\hat{B}_{t+\Delta}-\hat{B}_t}{B_t\sqrt{\Delta}}) = \sigma$ \\
+        $\alpha$ & Preference for lump-sum scheme & $-18.63$ & \E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2} \\
+        $\beta$ & Sensitivity to default risk & $1.221$ & \E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2} \\
         \bottomrule
     \end{tabular}
 
