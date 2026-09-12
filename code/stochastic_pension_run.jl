@@ -6,6 +6,9 @@ using Statistics, SparseArrays, ExponentialAction
 using Optimization, OptimizationOptimJL, Random
 using CSV, DataFrames, Dates
 
+include("parameter_tables.jl")
+using .ParameterTables: write_parameter_table
+
 function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, Tw = 20, Tm = 65,
     l = 20.61, τ = 0.115, y = 5.496, α = -7.752, β = 2.623, ρ = 0.02, σ = 0.083, B_max = 10.0)
     # find population growth rate 
@@ -57,61 +60,6 @@ function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, Tw = 20, 
         fDB, bDB, DBB, fDQ, bDQ, Bs, Qs)
 end
 
-"""Write the calibrated parameters in `para` to a LaTeX table."""
-function write_parameter_table(para; output_path = "./table/parameters.tex")
-    external_calibration = [
-        (raw"$b$",    "Birth rate",                para.b,  "Total fertility rate"),
-        (raw"$m$",    "Mortality rate",            para.m,  "Median lifespan"),
-        (raw"$T_w$",  "Working age",               para.Tw, ""),
-        (raw"$T_r$",  "Retirement age",            para.T,  "Standard retirement age"),
-        (raw"$T_m$",  "Age of mortality exposure", para.Tm, ""),
-        (raw"$\rho$", "Subjective discount rate",  para.ρ,  "Interest rate"),
-        (raw"$\tau$", "Pension tax",               para.τ,  "Pension tax"),
-        (raw"$y$",    "Income",                    para.y,  "Highest monthly insured salary"),
-        (raw"$\ell$", "Lump-sum pension",          para.l,  "Transfer based on 30 years of working"),
-        (raw"$p$",    "Monthly pension",           para.p,  "Pension based on 30 years of working"),
-    ]
-    internal_calibration = [
-        (raw"$r$",       "Pension fund return rate",       para.r, ""),
-        (raw"$\sigma$", "Pension fund volatility",        para.σ, ""),
-        (raw"$\alpha$", "Preference for lump-sum scheme", para.α, ""),
-        (raw"$\beta$",  "Sensitivity to default risk",    para.β, ""),
-    ]
-
-    value_string(x) = x isa Integer ? string(x) : @sprintf("%.4g", x)
-    linebreak = repeat("\\", 2)
-
-    function write_panel(io, title, rows)
-        println(io, "        \\multicolumn{4}{l}{\\textit{", title, "}} ", linebreak)
-        println(io, raw"        \addlinespace")
-        for (symbol, description, value, target) in rows
-            println(io, "        ", symbol, " & ", description, " & \$",
-                value_string(value), "\$ & ", target, " ", linebreak)
-        end
-    end
-
-    open(output_path, "w") do io
-        println(io, raw"\begin{threeparttable}")
-        println(io, raw"    \begin{tabular}{clcl}")
-        println(io, raw"        \toprule")
-        println(io, "        Parameter & Description & Value & Target ", linebreak)
-        println(io, raw"        \midrule")
-        write_panel(io, "Panel A: External Calibration", external_calibration)
-        println(io, raw"        \addlinespace")
-        println(io, raw"        \midrule")
-        write_panel(io, "Panel B: Internal Calibration", internal_calibration)
-        println(io, raw"        \bottomrule")
-        println(io, raw"    \end{tabular}")
-        println(io)
-        println(io, raw"    \begin{tablenotes}[flushleft]")
-        println(io, raw"        \footnotesize")
-        println(io, raw"        \item \textit{Note:} The monetary unit in the model is 100,000 NTD.")
-        println(io, raw"    \end{tablenotes}")
-        println(io, raw"\end{threeparttable}")
-    end
-
-    return output_path
-end
 
 para = model()
 
@@ -221,27 +169,7 @@ end
 
 # Least Square + Euler-Maruyama
 # S is the decomposition such that W = S'S.
-function loss(θ; B_path = B_path, Q_path = Q_path, S = I, Δ = 1/12)
-    para = model(; r = θ[1], σ = exp(θ[2]), α = θ[3], β = θ[4])
-    V = solve_pde(; para = para)
-    μB_targets = diff(B_path)./B_path[1:end-1]
-    μQ_targets = diff(Q_path) 
-
-    σ_target = std(μB_targets) / sqrt(Δ) - para.σ
-    μB_mean = mean(μB_targets) - mean(Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1])
-    μQ_mean = mean(μQ_targets) - mean(Δ * para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
-    σQ_target = std(μQ_targets) - std(Δ * para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
-
-    ms = vcat(μB_mean, σ_target, μQ_mean, σQ_target)
-    # μBs = Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1]
-    # μQ_std_targets = std(μQ_targets)
-    # μQ_stds = std(para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
-
-    # return 0*mean(abs2, μB_targets - μBs) + mean(abs2, para.σ - σ_target) + mean(abs2, μQ_targets - μQs) + mean(abs2, μQ_std_targets - μQ_stds)
-    return mean(abs2, S * ms)
-end
-
-function loss2(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = 1/12)
+function loss(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = 1/12)
     para = model(; r = θ[1], σ = exp(θ[2]), α = θ[3], β = θ[4])
     V = solve_pde(; para = para)
     μB_targets = diff(B_path)./B_path[1:end-1]
@@ -250,14 +178,8 @@ function loss2(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ 
     σ_target = std(μB_targets) / sqrt(Δ) - para.σ
     μB_mean = mean(μB_targets) - mean(Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1])
     q_mean = para.q.(V.(B_path[1:end-1], Q_path[1:end-1])) - q_path[1:end-1]
-    #q_sd = std(para.q.(V.(B_path[1:end-1], Q_path[1:end-1]))) - std(q_path[1:end-1])
 
     ms = vcat(μB_mean, σ_target, q_mean)
-    # μBs = Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1]
-    # μQ_std_targets = std(μQ_targets)
-    # μQ_stds = std(para.μQ.(Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))
-
-    # return 0*mean(abs2, μB_targets - μBs) + mean(abs2, para.σ - σ_target) + mean(abs2, μQ_targets - μQs) + mean(abs2, μQ_std_targets - μQ_stds)
     return mean(abs2, S * ms)
 end
 
@@ -310,7 +232,7 @@ r0 = 0.02
 β0 = 2.0
 θ0 = [r0, log(σ0), α0, β0]
 
-optf = OptimizationFunction((θ, p) -> loss2(θ), AutoFiniteDiff())
+optf = OptimizationFunction((θ, p) -> loss(θ), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
 res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
@@ -319,6 +241,9 @@ para_est = model(; r = res[1], σ = res[2], α = res[3], β = res[4])
 
 # output parameter table
 write_parameter_table(para_est)
+write_parameter_table(para_est; output_path = "table/parameters_A.tex", panel = :A)
+write_parameter_table(para_est; output_path = "table/parameters_B.tex", panel = :B)
+
 
 # simulate the estimated model
 V_est = solve_pde(para = para_est, iterations = 1000)
