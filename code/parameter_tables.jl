@@ -56,7 +56,7 @@ function write_parameter_table(para; output_path = "./table/parameters.tex", pan
 
     open(output_path, "w") do io
         println(io, raw"\begin{threeparttable}")
-        println(io, raw"    \begin{tabular}{clcl}")
+        println(io, raw"    \begin{tabularx}{\linewidth}{@{}c>{\raggedright\arraybackslash}Xc>{\raggedright\arraybackslash}X@{}}")
         println(io, raw"        \toprule")
         println(io, "        Parameter & Description & Value & Target ", linebreak)
         println(io, raw"        \midrule")
@@ -71,7 +71,7 @@ function write_parameter_table(para; output_path = "./table/parameters.tex", pan
             write_panel(io, "Panel B: Internal Calibration", internal_calibration)
         end
         println(io, raw"        \bottomrule")
-        println(io, raw"    \end{tabular}")
+        println(io, raw"    \end{tabularx}")
         println(io)
         println(io, raw"    \begin{tablenotes}[flushleft]")
         println(io, raw"        \footnotesize")

@@ -9,6 +9,8 @@
     ]{metropolis}
 
 \usepackage{booktabs}
+\usepackage{threeparttable}
+\usepackage{tabularx}
 
 \usepackage{pgfplots}
 \usepgfplotslibrary{dateplot}
@@ -62,6 +64,7 @@
         \begin{itemize}
             \item[-] Reform commitee established in 2012.
             \item[-] Reform on Civil Servant Retirement Pension in 2017.  
+            \item[-] External finance from the government since 2020.  
         \end{itemize}
     \end{itemize}
 \end{frame}
@@ -205,11 +208,11 @@
     \end{equation*}
     where
     \begin{equation*}
-        \mathcal A
-        =\mu_B\frac{\partial}{\partial \hat B}
-        +\mu_Q\frac{\partial}{\partial \hat Q}
-        +\frac{1}{2}\sigma^2\hat B^2
-        \frac{\partial^2}{\partial \hat B^2}.
+        \mathcal{A}f
+        =\mu_B\pd{f}{\hat{B}}
+        +\mu_Q\pd{f}{\hat{Q}}
+        +\frac{1}{2}\sigma^2\hat{B}^2
+        \pdd{f}{\hat{B}}.
     \end{equation*}
     \begin{itemize}
         \item Nonlinearity arises because $\mu_B$ and $\mu_Q$ depend on
@@ -221,6 +224,46 @@
     \end{itemize}
 \end{frame}
 
+\section{Results}
+
+\begin{frame}{Calibration}
+    \footnotesize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{0.92}
+    \begin{table}[t]
+        \input{../table/parameters_A.tex}
+    \end{table}
+\end{frame}
+
+\begin{frame}{Calibration}
+    \footnotesize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.05}
+    \begin{table}[t]
+        \input{../table/parameters_B.tex}
+    \end{table}
+\end{frame}
+
+\begin{frame}{Validation}
+    \centering
+    \includegraphics[scale=0.5]{../figure/validation_q.png}
+\end{frame}
+
+\begin{frame}{Estimated $V$}
+    \centering
+    \includegraphics[scale=0.5]{../figure/estimated_V.png}
+\end{frame}
+
+\begin{frame}{Counterfactuals}
+    \begin{itemize}
+        \item Experiments 
+        \begin{itemize}
+            \item[-] No external finance since $2020$.
+            \item[-] Raising pension tax rate. 
+            \item[-] No monthly option ($\alpha\to\infty$).
+        \end{itemize}
+    \end{itemize}
+\end{frame}
 
 \begin{frame}{To Do}
     \begin{itemize}
