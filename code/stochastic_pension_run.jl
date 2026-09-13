@@ -9,7 +9,7 @@ using CSV, DataFrames, Dates
 include("parameter_tables.jl")
 using .ParameterTables: write_parameter_table
 
-function model(; b = 0.00462, m = 0.06, T = 61, r = 0.04, p = 2.449, Tw = 25, Tm = 60,
+function model(; b = 0.00462, m = 0.06, T = 61, r = 0.057, p = 2.449, Tw = 25, Tm = 60,
     l = 19.755, τ = 0.075, y = 5.268, α = -0.035, β = 1.0, ρ = 0.02, σ = 0.133,
     B_max = 10.0, grid_power = 2.0)
     # find population growth rate 
@@ -179,56 +179,57 @@ end
 
 # Least Square + Euler-Maruyama
 # S is the decomposition such that W = S'S.
-function loss(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = 1/12)
-    para = model(; r = θ[1], σ = exp(θ[2]), α = θ[3], β = θ[4])
+Δ = 1/12
+function loss(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = Δ)
     # para = model(; σ = exp(θ[1]), α = θ[2], β = θ[3])
+    para = model(; σ = exp(θ[1]), α = θ[2], ρ = exp(θ[3]))
     V = solve_pde(; para = para)
     μB_targets = (diff(B_path) - Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))./(sqrt(Δ) * B_path[1:end-1])
      
 
     σ_target = log(std(μB_targets)) - log(para.σ)
-    q_mean = logit.(para.q.(V.(B_path[1:end-1], Q_path[1:end-1]))) - logit.(q_path[1:end-1])
+    q_mean = para.q.(V.(B_path[1:end-1], Q_path[1:end-1])) - q_path[1:end-1]
 
-    ms = vcat(mean(μB_targets), σ_target, q_mean)
-    #ms = vcat(σ_target, q_mean)
+    ms = vcat(σ_target, q_mean)
     return mean(abs2, S * ms)
 end
 
 # Estimation with real data 
 df = CSV.read("data/labor_insurance.csv", DataFrame)
-df.monthly_pension_recipients[1:2] .= 0
-df.lumpsum_recipients[1] = 0
-plot(df.date, df.monthly_pension_recipients, label="monthly")
-plot(df.date[1:end-1], diff(df.monthly_pension_recipients), label="monthly")
-plot!(df.date, df.lumpsum_recipients, label="lumpsum")
-q_path = diff(df.monthly_pension_recipients)./(diff(df.monthly_pension_recipients) + df.lumpsum_recipients[1:end-1])
-plot(df.date[1:end-1], q_path, label="q")
+
+
+# validate estimated new recipients 
+begin
+    plt = plot(df.date, df.estimated_new_monthly_pension_recipients, label = "Estimated")
+    plot!(plt, df.date, df.reported_new_monthly_pension_recipients, label = "Data")
+    display(plt)
+    savefig(plt, "./figure/validate_reconstruction.png")
+end
 
 ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
 
 df[!, :B] = df.fund_level_ntd ./ df.taiwan_registered_population ./ 100_000
 df[!, :Q] = df.labor_insurance_old_age_pension_recipients ./ df.taiwan_registered_population
-df[!, :q] = vcat(q_path, missing)
+df[!, :q] = df.new_monthly_pension_recipients ./ (df.new_monthly_pension_recipients + df.lumpsum_recipients)
 B_path = df.B[3:ext_finance_date_id-1]
 Q_path = df.Q[3:ext_finance_date_id-1]
 q_path = df.q[3:ext_finance_date_id-1] .|> Float64
-X_path = collect.(zip(B_path, Q_path))
 
 # plot the recipients 
 begin
     p1 = plot(df.date[3:end], df.q[3:end], label="", c=:black, title="Proportion of Monthly")
-    p2 = plot(df.date[3:end-1], diff(df.monthly_pension_recipients)[3:end], label="Monthly", leg=:topright)
-    plot!(p2, df.date[3:end-1], df.lumpsum_recipients[3:end-1], label="Lumpsum", title="Number of New Recipients")
+    p2 = plot(df.date[3:end], df.new_monthly_pension_recipients[3:end], label="Monthly", leg=:topright)
+    plot!(p2, df.date[3:end], df.lumpsum_recipients[3:end], label="Lumpsum", title="Number of New Recipients")
     vline!.([p1, p2], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
     plt = plot(p1, p2, layout=(2,1), size=(800, 600))
     display(plt)
     savefig(plt, "./figure/recipients.png")
 end
 
-Δ = 1/12
+
 begin
-   p1 = plot(df.date[3:end-1], df.B[3:end-1], label = "", title="Fund Level per Capita (100,000 NTD)", c=:black)
-   p2 = plot(df.date[3:end-1], df.Q[3:end-1], label = "", title="Recipients/Population", c=:black)
+   p1 = plot(df.date[3:end], df.B[3:end], label = "", title="Fund Level per Capita (100,000 NTD)", c=:black)
+   p2 = plot(df.date[3:end], df.Q[3:end], label = "", title="Recipients/Population", c=:black)
    #p3 = plot(df.date[3:end-1], df.q[3:end-1], title="q", label="", c=:black)
    vline!.([p1, p2], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
    plt = plot(p1, p2, layout = (2, 1), size = (800, 600))
@@ -237,21 +238,21 @@ begin
 end
 
 # initial guesses
-r0 = 0.0
+# estimate r
+r = mean(skipmissing(df.fund_annualized_return_pct[1:ext_finance_date_id-1]/100))
 σ0 = 0.12
 α0 = -15.0
-β0 = 2.25
-θ0 = [r0, log(σ0), α0, β0]
-# θ0 = [r0, log(σ0), α0]
+ρ0 = 0.02
+
+θ0 = [log(σ0), α0, log(ρ0)]
+# θ0 = [log(σ0), α0]
 
 optf = OptimizationFunction((θ, p) -> loss(θ), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
-res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
-# res = sol.u |> (x -> [exp(x[1]), x[2], x[3]])
+res = sol.u |> (x -> [exp(x[1]), x[2], exp(x[3])])
 
-para_est = model(; r = 0.0, σ = res[2], α = -15.0, β = 2.0)
-
+para_est = model(; σ = res[1], α = res[2], ρ = res[3])
 
 # output parameter table
 write_parameter_table(para_est)
@@ -275,9 +276,9 @@ end
 
 # validation for q 
 begin
-    plt = plot(df.date, df.q, title="q", label="Data", c=:black)
+    plt = plot(df.date[3:end], df.q[3:end], title="q", label="Data", c=:black)
     vline!(plt, [Date(2020)], label="",  c=:black, ls=:dash)    
-    plot!(plt, df.date, para_est.q.(V_est.(df.B, df.Q)), label="Model", c=:brown)
+    plot!(plt, df.date[3:end], para_est.q.(V_est.(df.B, df.Q))[3:end], label="Model", c=:brown)
     display(plt)
     savefig(plt, "./figure/validation_q.png")
 end
@@ -296,50 +297,9 @@ function diffusion_est!(du, u, p, t)
     du[2] = 0.0
 end
 
-sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[3], df.Q[3]], (0.0, Δ * (length(df.B[3:end])-1)), para_est)
-n_sim = 20
-Random.seed!(21)
-seeds = rand(UInt64, n_sim)
-ensemble_prob = EnsembleProblem(
-        sde_prob, 
-        prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
-    )
-sol = solve(
-        ensemble_prob,
-        SRIW1(),
-        EnsembleThreads();
-        trajectories = n_sim, 
-        callback = cb, 
-        abstol = 1e-8
-    )
-# sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 1234)
-
-# plot simulation
-begin
-    times = 0.0:Δ:(length(df.date)-1)*Δ
-    dates = df.date
-    p1 = plot(dates, df.B, label = "Data", title="B", c=:black)
-    p2 = plot(dates, df.Q, label = "Data", title="Q", c=:black)
-    p3 = plot(dates, df.q, title="q", label = "Data", c=:black)
-    vline!.([p1, p2, p3], Ref([Date(2020)]) , c=:black, label="", ls=:dash)
-    
-    sim_Bs = hcat([getindex.(sol(t), 1) for t in times]...)
-    sim_Qs = hcat([getindex.(sol(t), 2) for t in times]...)
-    sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
-    for i in 1:n_sim 
-        lab = i==1 ? "Simulation" : ""
-        plot!(p1, dates, sim_Bs[i, :], label=lab, c=:brown)
-        plot!(p2, dates, sim_Qs[i, :], label=lab, c=:brown)
-        plot!(p3, dates, sim_qs[i, :], label=lab, c=:brown)
-    end
-    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
-    display(plt)
-    savefig(plt, "./figure/estimated_sim.png")
-end
-
 # simulation with no external finance 
-sim_horizon = times[findfirst(x->x==Date(2020), df.date[3:end])-1:end]
-sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[ext_finance_date_id-1], df.Q[ext_finance_date_id-1]], (sim_horizon[1], sim_horizon[end]), para_est)
+sim_horizon = range(0.0, length = length(df.date[ext_finance_date_id:end]), step = Δ)
+sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[ext_finance_date_id], df.Q[ext_finance_date_id]], (sim_horizon[1], sim_horizon[end]), para_est)
 n_sim = 20
 Random.seed!(2026)
 seeds = rand(UInt64, n_sim)
@@ -361,7 +321,6 @@ sim_Qs = hcat([getindex.(sol(t), 2) for t in sim_horizon]...)
 sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
 
 begin
-    times = 0.0:Δ:(length(df.B[3:end])-1) * Δ
     dates = df.date[findfirst(x->x==Date(2020), df.date[3:end])-1:end]
     p1 = plot(df.date, df.B, label = "Data", title="B", c=:black)
     p2 = plot(df.date, df.Q, label = "Data", title="Q", c=:black)
@@ -371,9 +330,9 @@ begin
 
     for i in 1:n_sim 
         lab = i==1 ? "Simulation" : ""
-        plot!(p1, dates, sim_Bs[i, :], label=lab, c=:brown)
-        plot!(p2, dates, sim_Qs[i, :], label=lab, c=:brown)
-        plot!(p3, dates, sim_qs[i, :], label=lab, c=:brown)
+        plot!(p1, df.date[ext_finance_date_id:end], sim_Bs[i, :], label=lab, c=:brown)
+        plot!(p2, df.date[ext_finance_date_id:end], sim_Qs[i, :], label=lab, c=:brown)
+        plot!(p3, df.date[ext_finance_date_id:end], sim_qs[i, :], label=lab, c=:brown)
     end
     plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
     display(plt)
@@ -381,7 +340,7 @@ begin
 end
 
 # simulate the case for the case everyone choose lumpsum
-para_est = model(; r = res[1], σ = res[2], α = Inf, β = res[4])
+para_est = model(; σ = res[1], α = -Inf, ρ = res[3])
 # para_est = model(; σ = res[1], α = Inf, β = res[3])
 V_est = solve_pde(para = para_est, iterations = 1000)
 

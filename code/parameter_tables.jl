@@ -10,8 +10,8 @@ export write_parameter_table
 Write a complete LaTeX parameter table. Select `panel = :A` for external
 calibration, `:B` for internal calibration, or `:both` (the default).
 Internal targets describe the moments matched by `loss` in
-`stochastic_pension_run.jl`; both preference parameters match the choice-share
-time series jointly. Only fields belonging to the selected panel are required.
+`stochastic_pension_run.jl`; `alpha` and `rho` match the choice-share time
+series jointly. Only fields belonging to the selected panel are required.
 
 ```julia
 include("parameter_tables.jl")
@@ -29,17 +29,16 @@ function write_parameter_table(para; output_path = "./table/parameters.tex", pan
         (raw"$T_w$",  "Working age",               para.Tw, ""),
         (raw"$T_r$",  "Retirement age",            para.T,  "Standard retirement age"),
         (raw"$T_m$",  "Age of mortality exposure", para.Tm, ""),
-        (raw"$\rho$", "Subjective discount rate",  para.ρ,  "Interest rate"),
+        (raw"$r$",    "Pension fund return rate",  para.r,  "Mean annualized pension fund return"),
         (raw"$\tau$", "Pension tax",               para.τ,  "Pension tax"),
         (raw"$y$",    "Income",                    para.y,  "Highest monthly insured salary"),
         (raw"$\ell$", "Lump-sum pension",          para.l,  "Transfer based on 30 years of working"),
         (raw"$p$",    "Monthly pension",           para.p,  "Pension based on 30 years of working"),
     ]
     internal_calibration = panel == :A ? [] : [
-        (raw"$r$",       "Pension fund return rate",       para.r, raw"$\E\sbrc{\frac{\hat{B}_{t+\Delta}-\hat{B}_t}{B_t}-\mu_{B}(\hat{B}_t, \hat{Q}_t, \theta)\Delta} = 0$"),
-        (raw"$\sigma$", "Pension fund volatility",        para.σ, raw"$\text{SD}(\frac{\hat{B}_{t+\Delta}-\hat{B}_t}{B_t\sqrt{\Delta}}) = \sigma$"),
+        (raw"$\sigma$", "Pension fund volatility",        para.σ, raw"$\text{SD}(\frac{\hat{B}_{t+\Delta}-\hat{B}_t-\mu_B(\hat{B}_t,\hat{Q}_t,\theta)\Delta}{\hat{B}_t\sqrt{\Delta}})=\sigma$"),
         (raw"$\alpha$", "Preference for lump-sum scheme", para.α, raw"$\E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2}$"),
-        (raw"$\beta$",  "Sensitivity to default risk",    para.β, raw"$\E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2}$"),
+        (raw"$\rho$",   "Subjective discount rate",       para.ρ, raw"$\E\sbrc{(q - q(\hat{B}_t, \hat{Q}_t, \theta))^2}$"),
     ]
 
     value_string(x) = x isa Integer ? string(x) : @sprintf("%.4g", x)
