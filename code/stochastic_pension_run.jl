@@ -9,8 +9,9 @@ using CSV, DataFrames, Dates
 include("parameter_tables.jl")
 using .ParameterTables: write_parameter_table
 
-function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, Tw = 20, Tm = 65,
-    l = 20.61, τ = 0.115, y = 5.496, α = -7.752, β = 2.623, ρ = 0.02, σ = 0.083, B_max = 10.0)
+function model(; b = 0.00462, m = 0.06, T = 61, r = 0.04, p = 2.449, Tw = 25, Tm = 60,
+    l = 19.755, τ = 0.075, y = 5.268, α = -0.035, β = 1.0, ρ = 0.02, σ = 0.133,
+    B_max = 10.0, grid_power = 2.0)
     # find population growth rate 
     n = find_zero(n -> (-expm1(-n * Tm)) / n + exp(-n * Tm) / (n + m) - 1 / b, (-m+ 1e-8, -1e-8))
 
@@ -18,36 +19,46 @@ function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, Tw = 20, 
     g(s) = s < Tm ? b * exp(-n * s) : b * exp(-n * s - m * (s - Tm)) 
     labor_force = b * ((exp(-n*Tw) - exp(-n*Tm))/n + exp(m*Tm) * (exp(-(m+n)*Tm) - exp(-(m+n)*T)) / (m+n))
     q(V) = V ≤ 0 ? logistic(-α / β) : logistic(-(α + l - V) / β)
-    μB(B, Q, V) = (r-n) * B + b * τ * y * labor_force - (1 - q(V)) * g(T) * l - p * Q
+    μB(B, Q, V) = (r-n) * B + τ * y * labor_force - (1 - q(V)) * g(T) * l - p * Q
     σB(B) = σ * B
     μQ(Q, V) = q(V) * g(T) - (m+n) * Q
 
-    Q_max = b * exp(-n * T) / (m + n) 
+    Q_max = g(T) / (m + n) 
 
     # precomputed differentiation matrix
     nB = 200
     nQ = 80
-    Bs = range(0.0, B_max, nB)
-    Qs = range(0.0, Q_max, nQ)
+    grid_power >= 1 || throw(ArgumentError("grid_power must be at least 1"))
+    # The power map gives smaller cells near zero while retaining both endpoints.
+    Bs = B_max .* (range(0.0, 1.0, length = nB) .^ grid_power)
+    Qs = Q_max .* (range(0.0, 1.0, length = nQ) .^ grid_power)
 
-    dB = Bs[2] - Bs[1]
-    dQ = Qs[2] - Qs[1]
+    dB = diff(Bs)
+    dQ = diff(Qs)
 
     IB = sparse(I, nB, nB)
     IQ = sparse(I, nQ, nQ)
 
-    fDB = spdiagm(0 => fill(-1/dB, nB), 1 => fill(1/dB, nB-1))
-    bDB = spdiagm(0 => fill(1/dB, nB), -1 => fill(-1/dB, nB-1))
-    DBB = spdiagm(0 => fill(-2/dB^2, nB), 1 => fill(1/dB^2, nB-1), -1 => fill(1/dB^2, nB-1))
-    fDQ = spdiagm(0 => fill(-1/dQ, nQ), 1 => fill(1/dQ, nQ-1))
-    bDQ = spdiagm(0 => fill(1/dQ, nQ), -1 => fill(-1/dQ, nQ-1))
+    fDB = spdiagm(0 => vcat(-1 ./ dB, 0.0), 1 => 1 ./ dB)
+    bDB = spdiagm(0 => vcat(0.0, 1 ./ dB), -1 => -1 ./ dB)
+    fDQ = spdiagm(0 => vcat(-1 ./ dQ, 0.0), 1 => 1 ./ dQ)
+    bDQ = spdiagm(0 => vcat(0.0, 1 ./ dQ), -1 => -1 ./ dQ)
+
+    # Three-point second derivative on the nonuniform B grid.
+    lower_B = 2.0 ./ (dB[1:end-1] .* (dB[1:end-1] .+ dB[2:end]))
+    diag_B = -2.0 ./ (dB[1:end-1] .* dB[2:end])
+    upper_B = 2.0 ./ (dB[2:end] .* (dB[1:end-1] .+ dB[2:end]))
+    DBB = spdiagm(
+        -1 => vcat(lower_B, 1 / dB[end]^2),
+        0 => vcat(0.0, diag_B, -1 / dB[end]^2),
+        1 => vcat(0.0, upper_B),
+    )
 
     # adjust for boundary condition
     fDB[1, :] .= 0.0
     bDB[1, :] .= 0.0
     DBB[1, :] .= 0.0
     fDB[end, :] .= 0.0
-    DBB[end, end] = -1/dB^2
 
     # kron for 2d grids 
     fDB = kron(IQ, fDB)
@@ -56,12 +67,11 @@ function model(; b = 0.00462, m = 0.058, T = 65, r = 0.041, p = 2.556, Tw = 20, 
     fDQ = kron(fDQ, IB)
     bDQ = kron(bDQ, IB)
 
-    return (; b, m, T, Tw, Tm, r, ρ, p, l, τ, y, n, α, β, σ, q, μB, σB, μQ, B_max, Q_max, 
+    return (; b, m, T, Tw, Tm, r, ρ, p, l, τ, y, n, α, β, σ, g, q, μB, σB, μQ, B_max, Q_max,
+        grid_power,
         fDB, bDB, DBB, fDQ, bDQ, Bs, Qs)
 end
 
-
-para = model()
 
 # helper function to return discretized infinitesimal generator
 function construct_generator(V; para)
@@ -75,7 +85,7 @@ function construct_generator(V; para)
 end
 
 # solve the PDV of the pension
-function solve_pde(; tol = 1e-8, iterations = 1000, para)
+function solve_pde(; tol = 1e-8, iterations = 1000, para, damp = 1.0)
     @unpack m, r, ρ, p, μB, σB, μQ, B_max, Q_max, Bs, Qs = para
 
     V0 = [1/(ρ+m) * B / B_max for B in Bs, Q in Qs]
@@ -93,7 +103,7 @@ function solve_pde(; tol = 1e-8, iterations = 1000, para)
             @printf "Iterations: %d \t Sup-norm: %.5g \n" iter sup_norm
         end
         iter += 1
-        V0 = V
+        V0 = V * damp + V0 * (1 - damp)
     end
 
     return extrapolate(interpolate((Bs, Qs,), V0, Gridded(Linear())), Line())
@@ -171,20 +181,21 @@ end
 # S is the decomposition such that W = S'S.
 function loss(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = 1/12)
     para = model(; r = θ[1], σ = exp(θ[2]), α = θ[3], β = θ[4])
+    # para = model(; σ = exp(θ[1]), α = θ[2], β = θ[3])
     V = solve_pde(; para = para)
-    μB_targets = diff(B_path)./B_path[1:end-1]
+    μB_targets = (diff(B_path) - Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))./(sqrt(Δ) * B_path[1:end-1])
      
 
-    σ_target = std(μB_targets) / sqrt(Δ) - para.σ
-    μB_mean = mean(μB_targets) - mean(Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])) ./ B_path[1:end-1])
-    q_mean = para.q.(V.(B_path[1:end-1], Q_path[1:end-1])) - q_path[1:end-1]
+    σ_target = log(std(μB_targets)) - log(para.σ)
+    q_mean = logit.(para.q.(V.(B_path[1:end-1], Q_path[1:end-1]))) - logit.(q_path[1:end-1])
 
-    ms = vcat(μB_mean, σ_target, q_mean)
+    ms = vcat(mean(μB_targets), σ_target, q_mean)
+    #ms = vcat(σ_target, q_mean)
     return mean(abs2, S * ms)
 end
 
 # Estimation with real data 
-df = CSV.read("data/labor_insurance_fund_monthly.csv", DataFrame)
+df = CSV.read("data/labor_insurance.csv", DataFrame)
 df.monthly_pension_recipients[1:2] .= 0
 df.lumpsum_recipients[1] = 0
 plot(df.date, df.monthly_pension_recipients, label="monthly")
@@ -226,18 +237,21 @@ begin
 end
 
 # initial guesses
-r0 = 0.02
-σ0 = 0.1
-α0 = -3.0
-β0 = 2.0
+r0 = 0.0
+σ0 = 0.12
+α0 = -15.0
+β0 = 2.25
 θ0 = [r0, log(σ0), α0, β0]
+# θ0 = [r0, log(σ0), α0]
 
 optf = OptimizationFunction((θ, p) -> loss(θ), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
 res = sol.u |> (x -> [x[1], exp(x[2]), x[3], x[4]])
+# res = sol.u |> (x -> [exp(x[1]), x[2], x[3]])
 
-para_est = model(; r = res[1], σ = res[2], α = res[3], β = res[4])
+para_est = model(; r = 0.0, σ = res[2], α = -15.0, β = 2.0)
+
 
 # output parameter table
 write_parameter_table(para_est)
@@ -246,10 +260,10 @@ write_parameter_table(para_est; output_path = "table/parameters_B.tex", panel = 
 
 
 # simulate the estimated model
-V_est = solve_pde(para = para_est, iterations = 1000)
+V_est = solve_pde(para = para_est, iterations = 1000, damp = 0.5)
 
-Q_grids = range(0.0, para.Q_max, 301)
-B_grids = range(0.0, para.B_max, 301)
+Q_grids = range(0.0, para_est.Q_max, 301)
+B_grids = range(0.0, para_est.B_max, 301)
 V_ests = [V_est(B, Q) for B in B_grids, Q in Q_grids]
 begin
     p1 = surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
@@ -368,10 +382,11 @@ end
 
 # simulate the case for the case everyone choose lumpsum
 para_est = model(; r = res[1], σ = res[2], α = Inf, β = res[4])
+# para_est = model(; σ = res[1], α = Inf, β = res[3])
 V_est = solve_pde(para = para_est, iterations = 1000)
 
-Q_grids = range(0.0, para.Q_max, 301)
-B_grids = range(0.0, para.B_max, 301)
+Q_grids = range(0.0, para_est.Q_max, 301)
+B_grids = range(0.0, para_est.B_max, 301)
 V_ests = [V_est(B, Q) for B in B_grids, Q in Q_grids]
 begin
     p1 = surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
@@ -427,4 +442,3 @@ begin
     display(plt)
     savefig(plt, "./figure/lumpsum_sim.png")
 end
-
