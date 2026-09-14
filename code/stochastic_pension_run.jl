@@ -18,7 +18,7 @@ function model(; b = 0.00462, m = 0.06, T = 61, r = 0.057, p = 2.449, Tw = 25, T
     # auxilary functions
     g(s) = s < Tm ? b * exp(-n * s) : b * exp(-n * s - m * (s - Tm)) 
     labor_force = b * ((exp(-n*Tw) - exp(-n*Tm))/n + exp(m*Tm) * (exp(-(m+n)*Tm) - exp(-(m+n)*T)) / (m+n))
-    q(V) = V ≤ 1e-8 ? logistic(-α / β) : logistic(-(α + log(l) - log(V)) / β)
+    q(V) = logistic(-(α + log(l) - log(max(V, 0))) / β)
     μB(B, Q, V) = (r-n) * B + τ * y * labor_force - (1 - q(V)) * g(T) * l - p * Q
     σB(B) = σ * B
     μQ(Q, V) = q(V) * g(T) - (m+n) * Q
@@ -394,4 +394,29 @@ begin
     plt = plot(τs, qs, title = "q($ext_fin_B, $ext_fin_Q; τ)", xlabel="τ", label="", c=:brown)
     display(plt)
     savefig(plt, "./figure/q_tax.png")
+end
+
+# simulate one path for mechanism explain 
+begin
+    x0 = [0.1, 0.0]
+    τs = [0.075, 0.14]
+    times = 0.0:0.1:50.0
+    plts = []
+    Q_ubs = [0.05, 0.3]
+    B_ubs = [0.5, 5.0]
+    for (i, τ) in enumerate(τs)
+        para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
+        V = solve_pde(para = para)
+        Q_grids = range(0.0, Q_ubs[i], 301)
+        B_grids = range(0.0, B_ubs[i], 301)
+        Vs = [V(B, Q) for B in B_grids, Q in Q_grids]
+        plt = contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "τ = $τ", c=:viridis, levels = 20, lw = 0)
+        sim = simulate(para; x0 = x0, n_sim = 1, tspan = (times[1], times[end]), seed = 302)
+        path = hcat(only.(sim.(times))...)
+        plot!(plt, path[2, :], path[1, :], label="", c=:brown, xlims = (Q_grids[1], Q_grids[end]), ylims = (B_grids[1], B_grids[end]), lw = 5)
+        push!(plts, plt)
+    end
+    plt = plot(plts..., layout = (1, 2), size = (1600, 600))
+    display(plt)
+    savefig(plt, "./figure/mechanism.png")
 end
