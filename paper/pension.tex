@@ -142,8 +142,8 @@ A retiring individual $i$ chooses between between the two
 schemes $d\in\set{\ell, p}$ to maximize the utility, given by  
 \begin{equation}
     u_{it}(d) = \begin{cases}
-        \alpha + \ell + \beta\epsilon_i(\ell) &\text{if } d = \ell, \\
-        V_t + \beta\epsilon_i(p) &\text{if } d = p,
+        \alpha + \log(\ell) + \epsilon_i(\ell) &\text{if } d = \ell, \\
+        \log(V_t) + \epsilon_i(p) &\text{if } d = p,
     \end{cases}
 \end{equation}
 where $V_t$ is the present discount value of the monthly pension 
@@ -164,7 +164,7 @@ the present discount value of the monthly pension.
 By the property of the Gumbel distribution, the individuals' choices 
 aggregate to the proportion choosing the monthly scheme 
 \begin{equation}\label{eq:aggregation}
-    q_t = \P_t(u_{it}(p)>u_{it}(\ell)) = \frac{1}{1+\exp\pth{\frac{\alpha + \ell - V_t}{\beta}}}
+    q_t = \P_t(u_{it}(p)>u_{it}(\ell)) = \frac{1}{1+\exp\pth{\alpha + \log(\ell) - \log(V_t)}}
 \end{equation}
 by the law of large number across the individuals. Note that 
 $q_t$ is a function of $\hat{B}_t$ and $\hat{Q}_t$ since 
@@ -243,20 +243,6 @@ lifespan being $77$. The details are given in \cref{tab:parameters}.
     \includegraphics[scale=0.5]{../figure/estimated_V.png}
     \label{fig:estimated_V}
     \caption{Estimated $V$}
-\end{figure}
-
-\begin{figure}[ht]
-    \centering 
-    \includegraphics[scale=0.5]{../figure/estimated_sim.png}
-    \label{fig:estimated_sim}
-    \caption{Simulated Paths of the Estimated Model}
-\end{figure}
-
-\begin{figure}[ht]
-    \centering 
-    \includegraphics[scale=0.5]{../figure/no_ext_finance.png}
-    \label{fig:no_ext_finance}
-    \caption{Counterfactual Simulations without External Finance}
 \end{figure}
 
 \section*{Appendix}

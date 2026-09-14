@@ -238,6 +238,13 @@ begin
    savefig(plt, "./figure/state_data.png")
 end
 
+# plot population density
+begin
+    plt = plot(0.0:1.0:100.0, model().g, label="", xlabel="age", c=:black)
+    display(plt)
+    savefig(plt, "./figure/pop_density.png")
+end
+
 # initial guesses
 # estimate r
 r = mean(skipmissing(df.fund_annualized_return_pct[1:ext_finance_date_id-1]/100))

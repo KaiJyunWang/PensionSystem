@@ -69,6 +69,33 @@
     \end{itemize}
 \end{frame}
 
+\begin{frame}[label=data-reconstruction]{Data and Reconstruction}
+    \begin{itemize}
+        \item \textbf{Official monthly sources (since 2009):}
+        \begin{itemize}
+            \item[-] Bureau of Labor Funds: fund balance and investment return.
+            \item[-] Bureau of Labor Insurance: stocks of monthly recipients and
+            new lump-sum claims.
+            \item[-] Ministry of the Interior: population and mortality at ages 60+.
+        \end{itemize}
+        \item BLI reports new monthly recipients (first payments) only from May 2022.
+        Before then, reconstruct entries from the stock of monthly recipients:
+        \begin{equation*}
+            \begin{aligned}
+                \text{new monthly recipients}
+                ={}& \text{change in the recipient stock}
+                + \text{estimated deaths} \\
+                &+ \text{average correction from the overlap period}.
+            \end{aligned}
+        \end{equation*}
+        Estimated deaths use the monthly mortality rate implied by annual
+        mortality among Taiwan residents aged 60+; negative estimates are set to zero.
+    \end{itemize}
+    \hfill
+    \hyperlink{reconstruction-validation}{%
+        \beamergotobutton{View reconstruction validation}}
+\end{frame}
+
 \begin{frame}{Data}
     \centering 
     \includegraphics[scale=0.35]{../figure/state_data.png}
@@ -167,8 +194,8 @@
     \begin{equation*}
         u_{it}(d)=
         \begin{cases}
-            \alpha+\ell+\beta\epsilon_i(\ell), & d=\ell,\\
-            V(\hat B_t,\hat Q_t)+\beta\epsilon_i(p), & d=p.
+            \alpha+\log(\ell)+\epsilon_i(\ell), & d=\ell,\\
+            \log(V(\hat B_t,\hat Q_t))+\epsilon_i(p), & d=p.
         \end{cases}
     \end{equation*}
     The value of monthly benefits is
@@ -181,23 +208,21 @@
     recipient share is
     \begin{equation*}
         q(\hat B,\hat Q)
-        =\frac{1}{1+\exp\left(\frac{\alpha+\ell-V(\hat B,\hat Q)}{\beta}\right)}.
+        =\frac{1}{1+\exp\left(\alpha+\log(\ell)-\log(V(\hat B,\hat Q))\right)}.
     \end{equation*}
 \end{frame}
 
-\begin{frame}{Equilibrium and Main Mechanisms}
-    In a Markov equilibrium:
-    \begin{enumerate}
-        \item State dynamics are consistent with retirees' choice $q$.
-        \item The value $V$ is consistent with the induced bankruptcy time.
-        \item Individual choices aggregate to $q(\hat B,\hat Q)$.
-    \end{enumerate}
-    \begin{block}{Two Externalities}
+\begin{frame}{Equilibrium}
+    \begin{block}{Markov Equilibrium}
+        The equilibrium objects are the monthly-pension choice
+        $q(\hat B,\hat Q)$ and its value $V(\hat B,\hat Q)$ such that 
         \begin{enumerate}
-            \item Low $\hat{Q}$ $\longrightarrow$ far bankruptcy time $\longrightarrow$ monthly dominates $\longrightarrow$ {\color{red}add stress on the pension fund}.
-            \item High $\hat{Q}$ $\longrightarrow$ near bankruptcy time $\longrightarrow$ lumpsum dominates $\longrightarrow$ {\color{red}accelerate bankruptcy}.
+            \item the state dynamics induced by $q$;
+            \item the value $V$ implied by the resulting bankruptcy time; and
+            \item the individual choices induced by $V$, which aggregate to $q$.
         \end{enumerate}
     \end{block}
+    
 \end{frame}
 
 \begin{frame}{Value Function and Numerical Solution}
@@ -254,15 +279,29 @@
     \includegraphics[scale=0.5]{../figure/estimated_V.png}
 \end{frame}
 
+\begin{frame}{Externalities}
+    
+\end{frame}
+
 \begin{frame}{Counterfactuals}
     \begin{itemize}
         \item Experiments 
         \begin{itemize}
-            \item[-] No external finance since $2020$.
-            \item[-] Raising pension tax rate. 
-            \item[-] No monthly option ($\alpha\to\infty$).
+            \item[-] Simulate from 2020. 
+            \item[-] No monthly option or lumpsum option ($\alpha\to\pm\infty$).
+            \item[-] Raising pension tax rate.
         \end{itemize}
     \end{itemize}
+\end{frame}
+
+\begin{frame}{Bankruptcy Probabilities}
+    \centering
+    \includegraphics[scale=0.5]{../figure/bankruptcy_prob.png}
+\end{frame}
+
+\begin{frame}{Bankruptcy Probabilities for Different $\tau$}
+    \centering
+    \includegraphics[scale=0.5]{../figure/bankruptcy_prob_tax.png}
 \end{frame}
 
 \begin{frame}{To Do}
@@ -270,8 +309,16 @@
         \item Relax the mortality assumption. 
         \item Belief process. 
         \item Endogenous retirement. 
-        \item Regime switch in fund return. 
+        \item Boom period in return. 
     \end{itemize}
+\end{frame}
+
+\begin{frame}[label=reconstruction-validation]{Reconstruction Validation}
+    \centering
+    \includegraphics[height=0.78\textheight]{../figure/validate_reconstruction.png}
+
+    \vspace{0.25em}
+    \hyperlink{data-reconstruction}{\beamerreturnbutton{Back to data reconstruction}}
 \end{frame}
 
 \begin{frame}<0>[allowframebreaks]{References}
