@@ -25,7 +25,7 @@ function write_parameter_table(para; output_path = "./table/parameters.tex", pan
 
     external_calibration = panel == :B ? [] : [
         (raw"$b$",    "Birth rate",                para.b,  "Total fertility rate"),
-        (raw"$m$",    "Mortality rate",            para.m,  "Median lifespan"),
+        (raw"$m$",    "Mortality rate",            para.m,  ""),
         (raw"$T_w$",  "Working age",               para.Tw, ""),
         (raw"$T_r$",  "Retirement age",            para.T,  "Standard retirement age"),
         (raw"$T_m$",  "Age of mortality exposure", para.Tm, ""),

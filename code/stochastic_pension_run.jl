@@ -18,7 +18,7 @@ function model(; b = 0.00462, m = 0.06, T = 61, r = 0.057, p = 2.449, Tw = 25, T
     # auxilary functions
     g(s) = s < Tm ? b * exp(-n * s) : b * exp(-n * s - m * (s - Tm)) 
     labor_force = b * ((exp(-n*Tw) - exp(-n*Tm))/n + exp(m*Tm) * (exp(-(m+n)*Tm) - exp(-(m+n)*T)) / (m+n))
-    q(V) = V ≤ 0 ? logistic(-α / β) : logistic(-(α + l - V) / β)
+    q(V) = V ≤ 1e-8 ? logistic(-α / β) : logistic(-(α + log(l) - log(V)) / β)
     μB(B, Q, V) = (r-n) * B + τ * y * labor_force - (1 - q(V)) * g(T) * l - p * Q
     σB(B) = σ * B
     μQ(Q, V) = q(V) * g(T) - (m+n) * Q
@@ -88,7 +88,7 @@ end
 function solve_pde(; tol = 1e-8, iterations = 1000, para, damp = 1.0)
     @unpack m, r, ρ, p, μB, σB, μQ, B_max, Q_max, Bs, Qs = para
 
-    V0 = [1/(ρ+m) * B / B_max for B in Bs, Q in Qs]
+    V0 = [p/(ρ+m) * B / B_max for B in Bs, Q in Qs]
     rhs = fill(p, size(V0))
     rhs[1, :] .= 0.0
     rhs = vec(rhs)
@@ -182,7 +182,7 @@ end
 Δ = 1/12
 function loss(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = Δ)
     # para = model(; σ = exp(θ[1]), α = θ[2], β = θ[3])
-    para = model(; σ = exp(θ[1]), α = θ[2], ρ = exp(θ[3]))
+    para = model(; σ = exp(θ[1]), α = θ[2], ρ = -0.06+1e-4+exp(θ[3]))
     V = solve_pde(; para = para)
     μB_targets = (diff(B_path) - Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))./(sqrt(Δ) * B_path[1:end-1])
      
@@ -195,8 +195,18 @@ function loss(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ =
 end
 
 # Estimation with real data 
-df = CSV.read("data/labor_insurance.csv", DataFrame)
+begin
+    df = CSV.read("data/labor_insurance.csv", DataFrame)
 
+    ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
+
+    df[!, :B] = df.fund_level_ntd ./ df.taiwan_registered_population ./ 100_000
+    df[!, :Q] = df.labor_insurance_old_age_pension_recipients ./ df.taiwan_registered_population
+    df[!, :q] = df.new_monthly_pension_recipients ./ (df.new_monthly_pension_recipients + df.lumpsum_recipients)
+    B_path = df.B[3:ext_finance_date_id-1]
+    Q_path = df.Q[3:ext_finance_date_id-1]
+    q_path = df.q[3:ext_finance_date_id-1] .|> Float64
+end
 
 # validate estimated new recipients 
 begin
@@ -205,15 +215,6 @@ begin
     display(plt)
     savefig(plt, "./figure/validate_reconstruction.png")
 end
-
-ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
-
-df[!, :B] = df.fund_level_ntd ./ df.taiwan_registered_population ./ 100_000
-df[!, :Q] = df.labor_insurance_old_age_pension_recipients ./ df.taiwan_registered_population
-df[!, :q] = df.new_monthly_pension_recipients ./ (df.new_monthly_pension_recipients + df.lumpsum_recipients)
-B_path = df.B[3:ext_finance_date_id-1]
-Q_path = df.Q[3:ext_finance_date_id-1]
-q_path = df.q[3:ext_finance_date_id-1] .|> Float64
 
 # plot the recipients 
 begin
@@ -241,16 +242,16 @@ end
 # estimate r
 r = mean(skipmissing(df.fund_annualized_return_pct[1:ext_finance_date_id-1]/100))
 σ0 = 0.12
-α0 = -15.0
+α0 = 0.0
 ρ0 = 0.02
 
-θ0 = [log(σ0), α0, log(ρ0)]
+θ0 = [log(σ0), α0, log(ρ0+0.06)]
 # θ0 = [log(σ0), α0]
 
 optf = OptimizationFunction((θ, p) -> loss(θ), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
-res = sol.u |> (x -> [exp(x[1]), x[2], exp(x[3])])
+res = sol.u |> (x -> [exp(x[1]), x[2], -0.06+1e-4+exp(x[3])])
 
 para_est = model(; σ = res[1], α = res[2], ρ = res[3])
 
@@ -283,121 +284,107 @@ begin
     savefig(plt, "./figure/validation_q.png")
 end
 
-# simulation on the estimated parameters
-function drift_est!(du, u, p, t)
-    @unpack μB, μQ = p
 
-    du[1] = μB(u[1], u[2], V_est(u[1], u[2]))
-    du[2] = μQ(u[2], V_est(u[1], u[2]))
-end
+# simulation 
+# defaul initial condition to 2020/01
+function simulate(para; 
+    x0 = [df.B[ext_finance_date_id], df.Q[ext_finance_date_id]], 
+    tspan = (0.0, 10.0), n_sim = 2000, seed = 2026, 
+    output_func = (sol, ctx) -> (sol, false))
 
-function diffusion_est!(du, u, p, t)
-    @unpack σB = p
-    du[1] = σB(u[1])
-    du[2] = 0.0
-end
+    V_est = solve_pde(para = para, iterations = 1000, damp = 0.5)
+    function drift_est!(du, u, p, t)
+        @unpack μB, μQ = p
 
-# simulation with no external finance 
-sim_horizon = range(0.0, length = length(df.date[ext_finance_date_id:end]), step = Δ)
-sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[ext_finance_date_id], df.Q[ext_finance_date_id]], (sim_horizon[1], sim_horizon[end]), para_est)
-n_sim = 20
-Random.seed!(2026)
-seeds = rand(UInt64, n_sim)
-ensemble_prob = EnsembleProblem(
+        du[1] = μB(u[1], u[2], V_est(u[1], u[2]))
+        du[2] = μQ(u[2], V_est(u[1], u[2]))
+    end
+
+    function diffusion_est!(du, u, p, t)
+        @unpack σB = p
+        du[1] = σB(u[1])
+        du[2] = 0.0
+    end
+    sde_prob = SDEProblem(drift_est!, diffusion_est!, x0, tspan, para)
+
+    Random.seed!(seed)
+    seeds = rand(UInt64, n_sim)
+
+    ensemble_prob = EnsembleProblem(
         sde_prob, 
+        output_func = output_func,
         prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
     )
-sol = solve(
-        ensemble_prob,
-        SRIW1(),
-        EnsembleThreads();
-        trajectories = n_sim, 
-        callback = cb, 
-        abstol = 1e-8
-    )
+    return solve(
+            ensemble_prob,
+            SRIW1(),
+            EnsembleThreads();
+            trajectories = n_sim, 
+            callback = cb, 
+            abstol = 1e-8
+        )
+end
 
-sim_Bs = hcat([getindex.(sol(t), 1) for t in sim_horizon]...)
-sim_Qs = hcat([getindex.(sol(t), 2) for t in sim_horizon]...)
-sim_qs = para_est.q.(V_est.(sim_Bs, sim_Qs))
+# simulate bankruptcy time
+sim_benchmark = simulate(para_est, output_func = (sol, ctx) -> (sol.t[end], false))
+sim_all_lumpsum = simulate(model(σ = res[1], α = Inf, ρ = res[3]), output_func = (sol, ctx) -> (sol.t[end], false))
+sim_all_monthly = simulate(model(σ = res[1], α = -Inf, ρ = res[3]), output_func = (sol, ctx) -> (sol.t[end], false))
 
 begin
-    dates = df.date[findfirst(x->x==Date(2020), df.date[3:end])-1:end]
-    p1 = plot(df.date, df.B, label = "Data", title="B", c=:black)
-    p2 = plot(df.date, df.Q, label = "Data", title="Q", c=:black)
-    p3 = plot(df.date, df.q, title="q", label = "Data", c=:black)
-
-    vline!.([p1, p2, p3], Ref([Date(2020)]) , c=:black, ls=:dash, label="")
-
-    for i in 1:n_sim 
-        lab = i==1 ? "Simulation" : ""
-        plot!(p1, df.date[ext_finance_date_id:end], sim_Bs[i, :], label=lab, c=:brown)
-        plot!(p2, df.date[ext_finance_date_id:end], sim_Qs[i, :], label=lab, c=:brown)
-        plot!(p3, df.date[ext_finance_date_id:end], sim_qs[i, :], label=lab, c=:brown)
-    end
-    plt = plot(p1, p2, p3, layout = (3, 1), size = (800, 1000))
-    display(plt)
-    savefig(plt, "./figure/no_ext_finance.png")
+    times = 0.0:1/12:10.0
+    bankrupt_prob = [mean(sim_benchmark.u .< t) for t in times]
+    plt = plot(times, bankrupt_prob, xlabel="year", label="Benchmark", title="Bankruptcy Probability from Jan., 2020")  
+    bankrupt_prob = [mean(sim_all_lumpsum.u .< t) for t in times]
+    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Lumpsum", title="Bankruptcy Probability from Jan., 2020")
+    bankrupt_prob = [mean(sim_all_monthly.u .< t) for t in times]
+    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Monthly", title="Bankruptcy Probability from Jan., 2020")
+    display(plt)  
+    savefig(plt, "./figure/bankruptcy_prob.png")
 end
 
-# simulate the case for the case everyone choose lumpsum
-para_est = model(; σ = res[1], α = -Inf, ρ = res[3])
-# para_est = model(; σ = res[1], α = Inf, β = res[3])
-V_est = solve_pde(para = para_est, iterations = 1000)
-
-Q_grids = range(0.0, para_est.Q_max, 301)
-B_grids = range(0.0, para_est.B_max, 301)
-V_ests = [V_est(B, Q) for B in B_grids, Q in Q_grids]
+# simulate bankruptcy times for different tax level 
 begin
-    p1 = surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
-    p2 = contourf(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", c=:viridis, levels = 20, lw = 0)
-    plt = plot(p1, p2, layout=(1, 2), size=(800, 400))
-    display(plt)
-    savefig(plt, "./figure/lumpsum_V.png")
-end
-# simulation on the estimated parameters
-function drift_est!(du, u, p, t)
-    @unpack μB, μQ = p
-
-    du[1] = μB(u[1], u[2], V_est(u[1], u[2]))
-    du[2] = μQ(u[2], V_est(u[1], u[2]))
-end
-
-function diffusion_est!(du, u, p, t)
-    @unpack σB = p
-    du[1] = σB(u[1])
-    du[2] = 0.0
-end
-
-sde_prob = SDEProblem(drift_est!, diffusion_est!, [df.B[3], df.Q[3]], (0.0, Δ * (length(df.B[3:end])-1)), para_est)
-n_sim = 20
-Random.seed!(21)
-seeds = rand(UInt64, n_sim)
-ensemble_prob = EnsembleProblem(
-        sde_prob, 
-        prob_func = (prob, ctx) -> remake(prob; seed = seeds[ctx.sim_id])
-    )
-sol = solve(
-        ensemble_prob,
-        SRIW1(),
-        EnsembleThreads();
-        trajectories = n_sim, 
-        callback = cb, 
-        abstol = 1e-8
-    )
-# sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 1234)
-
-# plot simulation
-begin
-    times = 0.0:Δ:(length(df.date)-1)*Δ
-    dates = df.date
-    plt = plot(dates, df.B, label = "Data", title="B", c=:black, ylims=(0.0, 0.8))
-    vline!(plt, [Date(2020)] , c=:black, label="", ls=:dash)
-    
-    sim_Bs = hcat([getindex.(sol(t), 1) for t in times]...)
-    for i in 1:n_sim 
-        lab = i==1 ? "Simulation" : ""
-        plot!(plt, dates, sim_Bs[i, :], label=lab, c=:brown)
+    times = 0.0:1/12:50.0
+    τs = 0.075:0.04:0.315
+    nτ = length(τs)
+    plt = plot(title = "Bankruptcy Probability from Jan., 2020", xlabel = "year", leg=:outerright)
+    for (i, τ) in enumerate(τs)
+        para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
+        sim = simulate(para, output_func = (sol, ctx) -> (sol.t[end], false), tspan=(0.0, times[end]))
+        bankrupt_prob = [mean(sim.u .< t) for t in times]
+        plot!(plt, times, bankrupt_prob, label="τ = $τ", color = RGB(i/nτ, 0.2, 1-i/nτ))
     end
     display(plt)
-    savefig(plt, "./figure/lumpsum_sim.png")
+    savefig(plt, "./figure/bankruptcy_prob_tax.png")
+end
+
+# plot V under different tax rate 
+begin
+    τs = 0.075:0.04:0.315
+    plts = []
+    for (i, τ) in enumerate(τs)
+        para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
+        V = solve_pde(para = para)
+        Q_grids = range(0.0, 0.2, 301)
+        B_grids = range(0.0, 2.0, 301)
+        Vs = [V(B, Q) for B in B_grids, Q in Q_grids]
+        push!(plts, contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "τ = $τ", c=:viridis, levels = 20, lw = 0))
+    end
+    plt = plot(plts..., layout = (2, 4), size = (3600, 1200))
+    display(plt)
+    savefig(plt, "./figure/V_tax.png")
+end
+
+begin
+    τs = 0.075:0.01:0.315
+    qs = similar(τs)
+    ext_fin_B, ext_fin_Q = (df.B[ext_finance_date_id], df.Q[ext_finance_date_id]) .|> (x -> round(x, digits = 3))
+    for (i, τ) in enumerate(τs)
+        para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
+        V = solve_pde(para = para, damp = 0.5)
+        qs[i] = para.q(V(ext_fin_B, ext_fin_Q))
+    end
+    plt = plot(τs, qs, title = "q($ext_fin_B, $ext_fin_Q; τ)", xlabel="τ", label="", c=:brown)
+    display(plt)
+    savefig(plt, "./figure/q_tax.png")
 end
