@@ -295,7 +295,7 @@ end
 # simulation 
 # defaul initial condition to 2020/01
 function simulate(para; 
-    x0 = [df.B[ext_finance_date_id], df.Q[ext_finance_date_id]], 
+    x0 = [df.B[end], df.Q[end]], 
     tspan = (0.0, 10.0), n_sim = 2000, seed = 2026, 
     output_func = (sol, ctx) -> (sol, false), damp = 0.5)
 
@@ -340,11 +340,11 @@ sim_all_monthly = simulate(model(σ = res[1], α = -Inf, ρ = res[3]), output_fu
 begin
     times = 0.0:1/12:10.0
     bankrupt_prob = [mean(sim_benchmark.u .< t) for t in times]
-    plt = plot(times, bankrupt_prob, xlabel="year", label="Benchmark", title="Bankruptcy Probability from Jan., 2020")  
+    plt = plot(times, bankrupt_prob, xlabel="year", label="Benchmark", title="Bankruptcy Probability from Jun., 2026")  
     bankrupt_prob = [mean(sim_all_lumpsum.u .< t) for t in times]
-    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Lumpsum", title="Bankruptcy Probability from Jan., 2020")
+    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Lumpsum", title="Bankruptcy Probability from Jun., 2026")
     bankrupt_prob = [mean(sim_all_monthly.u .< t) for t in times]
-    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Monthly", title="Bankruptcy Probability from Jan., 2020")
+    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Monthly", title="Bankruptcy Probability from Jun., 2026")
     display(plt)  
     savefig(plt, "./figure/bankruptcy_prob.png")
 end
@@ -352,9 +352,9 @@ end
 # simulate bankruptcy times for different tax level 
 begin
     times = 0.0:1/12:50.0
-    τs = 0.075:0.04:0.315
+    τs = 0.075:0.04:0.235
     nτ = length(τs)
-    plt = plot(title = "Bankruptcy Probability from Jan., 2020", xlabel = "year", leg=:outerright)
+    plt = plot(title = "Bankruptcy Probability from Jun., 2026", xlabel = "year", leg=:outerright)
     for (i, τ) in enumerate(τs)
         para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
         sim = simulate(para, output_func = (sol, ctx) -> (sol.t[end], false), tspan=(0.0, times[end]))
@@ -424,11 +424,11 @@ end
 # simulation for cutting benefit
 begin
     times = 0.0:1/12:50.0
-    cuts = 0.0:0.1:0.5
+    cuts = 0.0:0.1:0.8
     n = length(cuts)
     p_benchmark = model().p
     l_benchmark = model().l
-    plt = plot(title = "Bankruptcy Probability from Jan., 2020", xlabel = "year", leg=:outerright)
+    plt = plot(title = "Bankruptcy Probability from Jun., 2026", xlabel = "year", leg=:outerright)
     for (i, cut) in enumerate(cuts)
         para = model(σ = res[1], α = res[2], ρ = res[3], p = (1-cut) * p_benchmark, l = (1-cut) * l_benchmark)
         sim = simulate(para, output_func = (sol, ctx) -> (sol.t[end], false), tspan=(0.0, times[end]))
