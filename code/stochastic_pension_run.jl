@@ -18,7 +18,7 @@ function model(; b = 0.00462, m = 0.06, T = 61, r = 0.057, p = 2.449, Tw = 25, T
     # auxilary functions
     g(s) = s < Tm ? b * exp(-n * s) : b * exp(-n * s - m * (s - Tm)) 
     labor_force = b * ((exp(-n*Tw) - exp(-n*Tm))/n + exp(m*Tm) * (exp(-(m+n)*Tm) - exp(-(m+n)*T)) / (m+n))
-    q(V) = logistic(-(α + log(l) - log(max(V, 0))) / β)
+    q(V) = α != -Inf ? logistic(-(α + log(l) - log(max(V, 0))) / β) : 1.0
     μB(B, Q, V) = (r-n) * B + τ * y * labor_force - (1 - q(V)) * g(T) * l - p * Q
     σB(B) = σ * B
     μQ(Q, V) = q(V) * g(T) - (m+n) * Q
@@ -297,9 +297,9 @@ end
 function simulate(para; 
     x0 = [df.B[ext_finance_date_id], df.Q[ext_finance_date_id]], 
     tspan = (0.0, 10.0), n_sim = 2000, seed = 2026, 
-    output_func = (sol, ctx) -> (sol, false))
+    output_func = (sol, ctx) -> (sol, false), damp = 0.5)
 
-    V_est = solve_pde(para = para, iterations = 1000, damp = 0.5)
+    V_est = solve_pde(para = para, damp = damp)
     function drift_est!(du, u, p, t)
         @unpack μB, μQ = p
 
@@ -419,4 +419,22 @@ begin
     plt = plot(plts..., layout = (1, 2), size = (1600, 600))
     display(plt)
     savefig(plt, "./figure/mechanism.png")
+end
+
+# simulation for cutting benefit
+begin
+    times = 0.0:1/12:50.0
+    cuts = 0.0:0.1:0.5
+    n = length(cuts)
+    p_benchmark = model().p
+    l_benchmark = model().l
+    plt = plot(title = "Bankruptcy Probability from Jan., 2020", xlabel = "year", leg=:outerright)
+    for (i, cut) in enumerate(cuts)
+        para = model(σ = res[1], α = res[2], ρ = res[3], p = (1-cut) * p_benchmark, l = (1-cut) * l_benchmark)
+        sim = simulate(para, output_func = (sol, ctx) -> (sol.t[end], false), tspan=(0.0, times[end]))
+        bankrupt_prob = [mean(sim.u .< t) for t in times]
+        plot!(plt, times, bankrupt_prob, label="-$(100*cut)%", color = RGB(i/n, 0.2, 1-i/n))
+    end
+    display(plt)
+    savefig(plt, "./figure/bankruptcy_prob_cuts.png")
 end
