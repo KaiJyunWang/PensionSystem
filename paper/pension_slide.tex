@@ -34,7 +34,7 @@
 
 \begin{frame}{Motivation}
     \begin{itemize}
-        \item How does the potential reform of the pension system affect the retirement decisions?
+        \item Why people seldom annuitize the pension?
         \begin{itemize}
             \item[-] Retire later to accumulate more wealth.
             \item[-] Retire earlier to withdraw more pension. 
@@ -69,7 +69,9 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}[label=data-reconstruction]{Data and Reconstruction}
+\section{Data}
+
+\begin{frame}[label=data-reconstruction]{Data}
     \begin{itemize}
         \item \textbf{Official monthly sources (since 2009):}
         \begin{itemize}
@@ -121,7 +123,7 @@
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Population}
+\begin{frame}[label=population]{Population}
     Let $g(t,s)$ denote the population density at age $s$:
     \begin{equation*}
         \frac{\partial g}{\partial t}
@@ -142,6 +144,9 @@
     \begin{equation*}
         1=b\frac{1-e^{-nT_m}}{n}+be^{-nT_m}\frac{1}{n+m}.
     \end{equation*}
+    \hfill
+    \hyperlink{population-density}{%
+        \beamergotobutton{View population density}}
 \end{frame}
 
 \begin{frame}{Pension System}
@@ -225,7 +230,7 @@
     
 \end{frame}
 
-\begin{frame}{Value Function and Numerical Solution}
+\begin{frame}[label=numerical-solution]{Value Function and Numerical Solution}
     The monthly-pension value solves the nonlinear HJB equation
     \begin{equation*}
         (\rho+m)V=p+\mathcal A V,
@@ -247,6 +252,9 @@
         \item Solve by finite differences and successive iteration, 
         equivalent to semi-implicit scheme with $dt = \infty$. 
     \end{itemize}
+    \hfill
+    \hyperlink{numerical-algorithm}{%
+        \beamergotobutton{View algorithm}}
 \end{frame}
 
 \section{Results}
@@ -280,7 +288,24 @@
 \end{frame}
 
 \begin{frame}{Externalities}
-    
+    \centering
+    \includegraphics[scale=0.25]{../figure/mechanism.png}
+\end{frame}
+
+\begin{frame}{Externalities}
+    \begin{itemize}
+        \item \textbf{Liquidity Channel}: 
+        \begin{itemize}
+            \item[-] Weak fundamental $\longrightarrow$ near bankruptcy $\longrightarrow$ lumpsum dominates 
+            $\longrightarrow$ accelerate bankruptcy 
+        \end{itemize}
+        \item \textbf{Solvency Channel}: 
+        \begin{itemize}
+            \item[-] Stronger but still insolvent fundamental $\longrightarrow$ later bankruptcy 
+            $\longrightarrow$ initially monthly dominates 
+            $\longrightarrow$ add stress on fund balance
+        \end{itemize}
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Counterfactuals}
@@ -289,7 +314,8 @@
         \begin{itemize}
             \item[-] Simulate from 2020. 
             \item[-] No monthly option or lumpsum option ($\alpha\to\pm\infty$).
-            \item[-] Raising pension tax rate.
+            \item[-] Raise pension tax rate.
+            \item[-] Cut benefits.
         \end{itemize}
     \end{itemize}
 \end{frame}
@@ -304,14 +330,31 @@
     \includegraphics[scale=0.5]{../figure/bankruptcy_prob_tax.png}
 \end{frame}
 
-\begin{frame}{To Do}
+\begin{frame}{Bankruptcy Probabilities for Cutting Benefits}
+    \centering
+    \includegraphics[scale=0.5]{../figure/bankruptcy_prob_cuts.png}
+\end{frame}
+
+
+\begin{frame}{Conclusions}
     \begin{itemize}
-        \item Relax the mortality assumption. 
-        \item Belief process. 
-        \item Endogenous retirement. 
-        \item Boom period in return. 
+        \item Take away:
+        \begin{itemize}
+            \item[-] The more generous monthly scheme creates the solvency issue.
+            \item[-] Raising tax rate to $23.5\%$ or cutting benefits by $70\%$ reduces 
+            the bankruptcy probabilities within 50 years near $0$. 
+        \end{itemize}
+        \item To do:
+        \begin{itemize}
+            \item[-] Relax the mortality assumption. 
+            \item[-] Belief process. 
+            \item[-] Endogenous retirement. 
+            \item[-] Boom period in return. 
+        \end{itemize}
     \end{itemize}
 \end{frame}
+
+\section{Appendix}
 
 \begin{frame}[label=reconstruction-validation]{Reconstruction Validation}
     \centering
@@ -319,6 +362,23 @@
 
     \vspace{0.25em}
     \hyperlink{data-reconstruction}{\beamerreturnbutton{Back to data reconstruction}}
+\end{frame}
+
+\begin{frame}[label=population-density]{Population Density}
+    \centering
+    \includegraphics[height=0.78\textheight]{../figure/pop_density.png}
+
+    \vspace{0.25em}
+    \hyperlink{population}{\beamerreturnbutton{Back to population}}
+\end{frame}
+
+\begin{frame}[label=numerical-algorithm,shrink=15]{Successive Iteration Algorithm}
+    \vspace{0.25em}
+    \scriptsize
+    \input{../table/algorithm.tex}
+
+    \vspace{0.25em}
+    \hyperlink{numerical-solution}{\beamerreturnbutton{Back to numerical solution}}
 \end{frame}
 
 \begin{frame}<0>[allowframebreaks]{References}
