@@ -1031,13 +1031,38 @@ def main() -> None:
                     f"{reported_scale} versus {exact_balance}"
                 )
 
+    # BLI年金核付 statistics are recorded in the first-payment month.  A pension
+    # entitlement for month t is normally first paid in t+1, so align the new-
+    # recipient measures back to t while preserving the original payment-month
+    # values for auditability.  The last row is dropped because its t+1 report
+    # is not yet available.
+    new_recipient_fields = (
+        "new_monthly_pension_recipients",
+        "estimated_new_monthly_pension_recipients",
+        "unshifted_estimated_new_monthly_pension_recipients",
+        "reported_new_monthly_pension_recipients",
+        "new_monthly_pension_recipients_method",
+    )
+    for index, row in enumerate(rows[:-1]):
+        following_row = rows[index + 1]
+        for field in new_recipient_fields:
+            row[f"payment_month_{field}"] = row[field]
+            row[field] = following_row[field]
+        row["new_monthly_pension_recipients_source_period"] = following_row["date"]
+        row["new_monthly_pension_recipients_source_url"] = following_row[
+            "pension_recipients_source_url"
+        ]
+    rows = rows[:-1]
+
     for field in ("fund_level_ntd",):
         missing = [row["date"] for row in rows if row[field] is None]
         if missing:
             raise RuntimeError(f"Missing {field} for: " + ", ".join(missing))
 
     row_periods = [str(row["date"]) for row in rows]
-    expected_periods = [f"{year:04d}-{month:02d}" for year, month in periods]
+    expected_periods = [
+        f"{year:04d}-{month:02d}" for year, month in periods[:-1]
+    ]
     if row_periods != expected_periods:
         raise RuntimeError("Fund reports do not form a complete monthly sequence")
 

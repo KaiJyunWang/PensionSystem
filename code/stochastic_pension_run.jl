@@ -1,15 +1,43 @@
-using Plots, Roots, LogExpFunctions, LinearAlgebra
+using CairoMakie, Roots, LogExpFunctions, LinearAlgebra
 using DiffEqCallbacks, OrdinaryDiffEq, StochasticDiffEq
 using Parameters, Printf, SteadyStateDiffEq
 using DifferentialEquations, Interpolations
 using Statistics, SparseArrays, ExponentialAction
 using Optimization, OptimizationOptimJL, Random
-using CSV, DataFrames, Dates
+using CSV, DataFrames, Dates, LaTeXStrings
+import CairoMakie.Makie: date_to_number
+
+set_theme!(
+    fontsize = 18,
+    Axis = (
+        xgridvisible = false,
+        ygridvisible = false,
+        titlesize = 24,
+        xlabelsize = 20,
+        ylabelsize = 20,
+        xticklabelsize = 16,
+        yticklabelsize = 16,
+    ),
+    Axis3 = (
+        xgridvisible = false,
+        ygridvisible = false,
+        zgridvisible = false,
+        titlesize = 24,
+        xlabelsize = 20,
+        ylabelsize = 20,
+        zlabelsize = 20,
+        xticklabelsize = 16,
+        yticklabelsize = 16,
+        zticklabelsize = 16,
+    ),
+    Legend = (labelsize = 17,),
+    Colorbar = (labelsize = 20, ticklabelsize = 16,),
+)
 
 include("parameter_tables.jl")
 using .ParameterTables: write_parameter_table
 
-function model(; b = 0.00462, m = 0.06, T = 61, r = 0.057, p = 2.449, Tw = 25, Tm = 60,
+function model(; b = 0.00462, m = 0.06, T = 61, r = 0.093, p = 2.449, Tw = 25, Tm = 60,
     l = 19.755, τ = 0.075, y = 5.268, α = -0.035, β = 1.0, ρ = 0.02, σ = 0.133,
     B_max = 10.0, grid_power = 2.0)
     # find population growth rate 
@@ -130,8 +158,12 @@ V = solve_pde(; para = para)
 Q_grids = range(0.0, para.Q_max, 101)
 B_grids = range(0.0, para.B_max, 101)
 Vs = [V(B, Q) for B in B_grids, Q in Q_grids]
-surface(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
-contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "V", c=:viridis, levels = 20, lw = 0)
+fig = Figure(size = (1200, 500))
+ax3d = Axis3(fig[1, 1], xlabel = "Q", ylabel = "B", zlabel = "V", title = "V", azimuth = 50°, elevation = 30°)
+surface!(ax3d, Q_grids, B_grids, permutedims(Vs), colormap = :viridis, transparency = true, alpha = 0.7)
+ax2d = Axis(fig[1, 2], xlabel = "Q", ylabel = "B", title = "V")
+contour_plot = contourf!(ax2d, Q_grids, B_grids, permutedims(Vs), colormap = :viridis, levels = 20)
+Colorbar(fig[1, 3], contour_plot, label = "V")
 
 # simulation 
 # u = [B, Q]
@@ -165,12 +197,15 @@ sim = solve(sde_prob, SRIW1(), callback = cb, abstol = 1e-8, seed = 568)
 begin
     ts = range(0.0, sim.t[end], 300)
     sim_Vs = map(u -> V(u...), sim.(ts))
-    p1 = plot(sim, idxs = 1, title = "B", xlabel = "t", label = "")
-    plot!(p1, sim.t, zeros(length(sim.t)), label = "", c=:black, ls=:dash)
-    p2 = plot(sim, idxs = 2, title = "Q", xlabel = "t", label = "")
-    p3 = plot(ts, para.q.(sim_Vs), title = "q", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
-    p4 = plot(ts, sim_Vs, title = "V", xlabel = "t", label = "", xlims = (0.0, sim.t[end]))
-    plt = plot(p1, p2, p3, p4, layout = (4, 1), size = (600, 1000))
+    fig = Figure(size = (600, 1000))
+    axes = [Axis(fig[i, 1], title = title, xlabel = "t", ylabel = title) for (i, title) in enumerate(("B", "Q", "q", "V"))]
+    lines!(axes[1], sim.t, getindex.(sim.u, 1))
+    hlines!(axes[1], 0.0, color = :black, linestyle = :dash)
+    lines!(axes[2], sim.t, getindex.(sim.u, 2))
+    lines!(axes[3], ts, para.q.(sim_Vs))
+    lines!(axes[4], ts, sim_Vs)
+    xlims!.(axes[3:4], 0.0, sim.t[end])
+    fig
 end
 =#
 
@@ -182,7 +217,7 @@ end
 Δ = 1/12
 function loss(θ; B_path = B_path, Q_path = Q_path, q_path = q_path, S = I, Δ = Δ)
     # para = model(; σ = exp(θ[1]), α = θ[2], β = θ[3])
-    para = model(; σ = exp(θ[1]), α = θ[2], ρ = -0.06+1e-4+exp(θ[3]))
+    para = model(; σ = exp(θ[1]), α = θ[2], ρ = exp(θ[3]))
     V = solve_pde(; para = para)
     μB_targets = (diff(B_path) - Δ * para.μB.(B_path[1:end-1], Q_path[1:end-1], V.(B_path[1:end-1], Q_path[1:end-1])))./(sqrt(Δ) * B_path[1:end-1])
      
@@ -197,68 +232,193 @@ end
 # Estimation with real data 
 begin
     df = CSV.read("data/labor_insurance.csv", DataFrame)
-
-    ext_finance_date_id = findall(x -> x == Date(2020), df.date)|> only
+    df[!, :date] = Date.(String.(df.date), dateformat"yyyy-mm")
 
     df[!, :B] = df.fund_level_ntd ./ df.taiwan_registered_population ./ 100_000
     df[!, :Q] = df.labor_insurance_old_age_pension_recipients ./ df.taiwan_registered_population
     df[!, :q] = df.new_monthly_pension_recipients ./ (df.new_monthly_pension_recipients + df.lumpsum_recipients)
-    B_path = df.B[3:ext_finance_date_id-1]
-    Q_path = df.Q[3:ext_finance_date_id-1]
-    q_path = df.q[3:ext_finance_date_id-1] .|> Float64
+    B_path = df.B
+    Q_path = df.Q
+    q_path = df.q
+    # information shocks
+    dates = [Date(2012, 9), Date(2020, 3)]
+    event_labels = [
+        "Reported Bankruptcy \n Time Shock",
+        "Extra Funding",
+    ]
 end
 
 # validate estimated new recipients 
 begin
-    plt = plot(df.date, df.estimated_new_monthly_pension_recipients, label = "Estimated")
-    plot!(plt, df.date, df.reported_new_monthly_pension_recipients, label = "Data")
-    display(plt)
-    savefig(plt, "./figure/validate_reconstruction.png")
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], title = "New Monthly Pension Recipients (thousand people)")
+    estimated = .!ismissing.(df.estimated_new_monthly_pension_recipients)
+    lines!(
+        ax,
+        df.date[estimated],
+        Float64.(df.estimated_new_monthly_pension_recipients[estimated]) ./ 1_000;
+        label = "Estimated",
+        color = :brown,
+    )
+    reported = .!ismissing.(df.reported_new_monthly_pension_recipients)
+    lines!(
+        ax,
+        df.date[reported],
+        Float64.(df.reported_new_monthly_pension_recipients[reported]) ./ 1_000;
+        label = "Data",
+        color = :black,
+    )
+    axislegend(ax)
+    display(fig)
+    save("./figure/validate_reconstruction.png", fig, px_per_unit = 2)
 end
 
-# plot the recipients 
+# compare the absolute amount of withdrawals
 begin
-    p1 = plot(df.date[3:end], df.q[3:end], label="", c=:black, title="Proportion of Monthly")
-    p2 = plot(df.date[3:end], df.new_monthly_pension_recipients[3:end], label="Monthly", leg=:topright)
-    plot!(p2, df.date[3:end], df.lumpsum_recipients[3:end], label="Lumpsum", title="Number of New Recipients")
-    vline!.([p1, p2], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
-    plt = plot(p1, p2, layout=(2,1), size=(800, 600))
-    display(plt)
-    savefig(plt, "./figure/recipients.png")
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], title = "New Monthly Pension Recipients (thousand people)")
+    estimated = .!ismissing.(df.estimated_new_monthly_pension_recipients)
+    lines!(
+        ax,
+        df.date[estimated],
+        Float64.(df.estimated_new_monthly_pension_recipients[estimated]) ./ 1_000;
+        label = "Estimated",
+        color = :brown,
+    )
+    reported = .!ismissing.(df.reported_new_monthly_pension_recipients)
+    lines!(
+        ax,
+        df.date[reported],
+        Float64.(df.reported_new_monthly_pension_recipients[reported]) ./ 1_000;
+        label = "Data",
+        color = :black,
+    )
+    axislegend(ax)
+    display(fig)
+    save("./figure/validate_reconstruction.png", fig, px_per_unit = 2)
+end
+
+begin
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], title = "Number of Recipients (thousand people)")
+    lines!(ax, df.date, df.new_monthly_pension_recipients / 1000, label = "Monthly")
+    lines!(ax, df.date, df.lumpsum_recipients / 1000, label = "Lumpsum")
+    event_xs = date_to_number.(DateTime, dates)
+    sample_end_x = date_to_number(DateTime, maximum(df.date))
+    vlines!(ax, range(event_xs[2], sample_end_x, length = 300), color = (:teal, 0.15), linewidth = 2)
+    vlines!(ax, event_xs, color = :black, linestyle = :dash)
+    label_y = 45
+    ylims!(ax, 0.0, 50.0)
+    for (date, label) in zip(dates, event_labels)
+        textlabel!(
+            ax,
+            date,
+            label_y;
+            text = label,
+            text_align = (:left, :bottom),
+            offset = (8, 0),
+            fontsize = 18,
+            background_color = (:white, 0.85),
+            strokewidth = 0,
+            padding = 3,
+        )
+    end
+    axislegend(ax)
+    display(fig)
+    save("./figure/recipients.png", fig, px_per_unit = 2)
+end
+
+# plot the recipients fractions
+begin
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], title = "Fraction of Monthly")
+    lines!(ax, df.date, df.q, color = :black)
+    event_xs = date_to_number.(DateTime, dates)
+    sample_end_x = date_to_number(DateTime, maximum(df.date))
+    vlines!(ax, range(event_xs[2], sample_end_x, length = 300), color = (:teal, 0.15), linewidth = 2)
+    vlines!(ax, event_xs, color = :black, linestyle = :dash)
+    label_y = 0.1
+    ylims!(ax, 0.0, 1.0)
+    for (date, label) in zip(dates, event_labels)
+        textlabel!(
+            ax,
+            date,
+            label_y;
+            text = label,
+            text_align = (:left, :bottom),
+            offset = (8, 0),
+            fontsize = 18,
+            background_color = (:white, 0.85),
+            strokewidth = 0,
+            padding = 3,
+        )
+    end
+    display(fig)
+    save("./figure/recipient_fraction.png", fig, px_per_unit = 2)
 end
 
 
 begin
-   p1 = plot(df.date[3:end], df.B[3:end], label = "", title="Fund Level per Capita (100,000 NTD)", c=:black)
-   p2 = plot(df.date[3:end], df.Q[3:end], label = "", title="Recipients/Population", c=:black)
-   #p3 = plot(df.date[3:end-1], df.q[3:end-1], title="q", label="", c=:black)
-   vline!.([p1, p2], Ref([Date(2020)]), label="",  c=:black, ls=:dash)
-   plt = plot(p1, p2, layout = (2, 1), size = (800, 600))
-   display(plt)
-   savefig(plt, "./figure/state_data.png")
+   fig = Figure(size = (800, 600))
+   ax1 = Axis(fig[1, 1], title = "Fund Level (100,000 NTD) / Population")
+   ax2 = Axis(fig[2, 1], title = "Recipients / Population")
+   lines!(ax1, df.date, df.B, color = :black)
+   lines!(ax2, df.date, df.Q, color = :black)
+   event_xs = date_to_number.(DateTime, dates)
+   sample_end_x = date_to_number(DateTime, maximum(df.date))
+   funding_period_xs = range(event_xs[2], sample_end_x, length = 300)
+   vlines!(ax1, funding_period_xs, color = (:teal, 0.15), linewidth = 2)
+   vlines!(ax2, funding_period_xs, color = (:teal, 0.15), linewidth = 2)
+   vlines!(ax1, event_xs, color = :black, linestyle = :dash)
+   vlines!(ax2, event_xs, color = :black, linestyle = :dash)
+   for (ax, values) in ((ax1, df.B), (ax2, df.Q))
+       value_min, value_max = extrema(values)
+       value_range = value_max - value_min
+       label_ys = (value_max - 0.05value_range, value_min + 0.05value_range)
+       vertical_alignments = (:top, :bottom)
+       for (date, label, label_y, valign) in zip(dates, event_labels, label_ys, vertical_alignments)
+           textlabel!(
+               ax,
+               date,
+               label_y;
+               text = label,
+               text_align = (:left, valign),
+               offset = (8, 0),
+               fontsize = 18,
+               background_color = (:white, 0.85),
+               strokewidth = 0,
+               padding = 3,
+           )
+       end
+   end
+   display(fig)
+   save("./figure/state_data.png", fig, px_per_unit = 2)
 end
 
 # plot population density
 begin
-    plt = plot(0.0:1.0:100.0, model().g, label="", xlabel="age", c=:black)
-    display(plt)
-    savefig(plt, "./figure/pop_density.png")
+    ages = 0.0:1.0:100.0
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], xlabel = "Age", ylabel = "Population density")
+    lines!(ax, ages, model().g.(ages), color = :black)
+    display(fig)
+    save("./figure/pop_density.png", fig, px_per_unit = 2)
 end
 
 # initial guesses
 # estimate r
-r = mean(skipmissing(df.fund_annualized_return_pct[1:ext_finance_date_id-1]/100))
+r = mean(skipmissing(df.fund_annualized_return_pct))/100
 σ0 = 0.12
 α0 = 0.0
 ρ0 = 0.02
 
-θ0 = [log(σ0), α0, log(ρ0+0.06)]
+θ0 = [log(σ0), α0, log(ρ0)]
 # θ0 = [log(σ0), α0]
 
 optf = OptimizationFunction((θ, p) -> loss(θ), AutoFiniteDiff())
 prob = OptimizationProblem(optf, θ0)
 sol = solve(prob, NelderMead(); show_trace = true)
-res = sol.u |> (x -> [exp(x[1]), x[2], -0.06+1e-4+exp(x[3])])
+res = sol.u |> (x -> [exp(x[1]), x[2], exp(x[3])])
 
 para_est = model(; σ = res[1], α = res[2], ρ = res[3])
 
@@ -275,25 +435,116 @@ Q_grids = range(0.0, para_est.Q_max, 301)
 B_grids = range(0.0, para_est.B_max, 301)
 V_ests = [V_est(B, Q) for B in B_grids, Q in Q_grids]
 begin
-    p1 = surface(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", camera = (50,30), alpha = 0.7, c=:viridis)
-    p2 = contourf(Q_grids, B_grids, V_ests, xlabel = "Q", ylabel = "B", title = "V", c=:viridis, levels = 20, lw = 0)
-    plt = plot(p1, p2, layout=(1, 2), size=(800, 400))
-    display(plt)
-    savefig(plt, "./figure/estimated_V.png")
+    make_value_figure() = begin
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], xlabel = "Q", ylabel = "B", title = "V")
+    contour_plot = contourf!(ax, Q_grids, B_grids, permutedims(V_ests), colormap = :viridis, levels = 20)
+    Colorbar(fig[1, 2], contour_plot)
+        fig = Figure(size = (800, 600))
+        ax = Axis(fig[1, 1], xlabel = "Q", ylabel = "B", title = "V")
+        contour_plot = contourf!(ax, Q_grids, B_grids, permutedims(V_ests), colormap = :viridis, levels = 20)
+        Colorbar(fig[1, 2], contour_plot)
+        return fig, ax
+    end
+
+    fig, ax = make_value_figure()
+    display(fig)
+    save("./figure/estimated_V.png", fig, px_per_unit = 2)
+
+    q_mid = (first(Q_grids) + last(Q_grids)) / 2
+    b_mid = (first(B_grids) + last(B_grids)) / 2
+    q_span = last(Q_grids) - first(Q_grids)
+    b_span = last(B_grids) - first(B_grids)
+
+    fig_fund, ax_fund = make_value_figure()
+    arrows2d!(
+        ax_fund,
+        [Point2f(q_mid, b_mid)],
+        [Vec2f(0, 0.3b_span)];
+        align = :center,
+        color = :orangered,
+        shaftwidth = 10,
+        tipwidth = 30,
+        tiplength = 24,
+    )
+    textlabel!(
+        ax_fund,
+        q_mid + 0.04q_span,
+        b_mid;
+        text = "Higher Fund Level",
+        text_align = (:left, :center),
+        fontsize = 20,
+        background_color = (:white, 0.9),
+        strokewidth = 0,
+        padding = 4,
+    )
+    display(fig_fund)
+    save("./figure/estimated_V_higher_fund.png", fig_fund, px_per_unit = 2)
+
+    fig_recipients, ax_recipients = make_value_figure()
+    arrows2d!(
+        ax_recipients,
+        [Point2f(q_mid, b_mid)],
+        [Vec2f(0.3q_span, 0)];
+        align = :center,
+        color = :orangered,
+        shaftwidth = 10,
+        tipwidth = 30,
+        tiplength = 24,
+    )
+    textlabel!(
+        ax_recipients,
+        q_mid,
+        b_mid + 0.06b_span;
+        text = "More Monthly Recipients",
+        text_align = (:center, :bottom),
+        fontsize = 20,
+        background_color = (:white, 0.9),
+        strokewidth = 0,
+        padding = 4,
+    )
+    display(fig_recipients)
+    save("./figure/estimated_V_more_monthly_recipients.png", fig_recipients, px_per_unit = 2)
 end
 
 # validation for q 
 begin
-    plt = plot(df.date[3:end], df.q[3:end], title="q", label="Data", c=:black)
-    vline!(plt, [Date(2020)], label="",  c=:black, ls=:dash)    
-    plot!(plt, df.date[3:end], para_est.q.(V_est.(df.B, df.Q))[3:end], label="Model", c=:brown)
-    display(plt)
-    savefig(plt, "./figure/validation_q.png")
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], title = "q")
+    model_q = para_est.q.(V_est.(df.B, df.Q))
+    lines!(ax, df.date, df.q, label = "Data", color = :black)
+    lines!(ax, df.date, model_q, label = "Model", color = :brown)
+    event_xs = date_to_number.(DateTime, dates)
+    sample_end_x = date_to_number(DateTime, maximum(df.date))
+    vlines!(ax, range(event_xs[2], sample_end_x, length = 300), color = (:teal, 0.15), linewidth = 2)
+    vlines!(ax, event_xs, color = :black, linestyle = :dash)
+    q_min = min(minimum(df.q), minimum(model_q))
+    q_max = max(maximum(df.q), maximum(model_q))
+    q_range = q_max - q_min
+    label_ys = (q_max - 0.05q_range, q_min + 0.05q_range)
+    vertical_alignments = (:top, :bottom)
+    for (date, label, label_y, valign) in zip(dates, event_labels, label_ys, vertical_alignments)
+        textlabel!(
+            ax,
+            date,
+            label_y;
+            text = label,
+            text_align = (:left, valign),
+            offset = (8, 0),
+            fontsize = 18,
+            background_color = (:white, 0.85),
+            strokewidth = 0,
+            padding = 3,
+        )
+    end
+    axislegend(ax; position = :rb)
+    display(fig)
+    save("./figure/validation_q.png", fig, px_per_unit = 2)
 end
 
 
 # simulation 
-# defaul initial condition to 2020/01
+# defaul initial condition to 2026/06
 function simulate(para; 
     x0 = [df.B[end], df.Q[end]], 
     tspan = (0.0, 10.0), n_sim = 2000, seed = 2026, 
@@ -340,13 +591,16 @@ sim_all_monthly = simulate(model(σ = res[1], α = -Inf, ρ = res[3]), output_fu
 begin
     times = 0.0:1/12:10.0
     bankrupt_prob = [mean(sim_benchmark.u .< t) for t in times]
-    plt = plot(times, bankrupt_prob, xlabel="year", label="Benchmark", title="Bankruptcy Probability from Jun., 2026")  
+    fig = Figure(size = (800, 600))
+    ax = Axis(fig[1, 1], xlabel = "Year", ylabel = "Bankruptcy probability", title = "Bankruptcy Probability from Jun., 2026")
+    lines!(ax, times, bankrupt_prob, label = "Benchmark")
     bankrupt_prob = [mean(sim_all_lumpsum.u .< t) for t in times]
-    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Lumpsum", title="Bankruptcy Probability from Jun., 2026")
+    lines!(ax, times, bankrupt_prob, label = "All Lumpsum")
     bankrupt_prob = [mean(sim_all_monthly.u .< t) for t in times]
-    plot!(plt, times, bankrupt_prob, xlabel="year", label="All Monthly", title="Bankruptcy Probability from Jun., 2026")
-    display(plt)  
-    savefig(plt, "./figure/bankruptcy_prob.png")
+    lines!(ax, times, bankrupt_prob, label = "All Monthly")
+    axislegend(ax; position = :rb)
+    display(fig)
+    save("./figure/bankruptcy_prob.png", fig, px_per_unit = 2)
 end
 
 # simulate bankruptcy times for different tax level 
@@ -354,87 +608,145 @@ begin
     times = 0.0:1/12:50.0
     τs = 0.075:0.04:0.235
     nτ = length(τs)
-    plt = plot(title = "Bankruptcy Probability from Jun., 2026", xlabel = "year", leg=:outerright)
+    fig = Figure(size = (900, 600))
+    ax = Axis(fig[1, 1], title = "Bankruptcy Probability from Jun., 2026", xlabel = "Year", ylabel = "Bankruptcy probability")
     for (i, τ) in enumerate(τs)
         para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
         sim = simulate(para, output_func = (sol, ctx) -> (sol.t[end], false), tspan=(0.0, times[end]))
         bankrupt_prob = [mean(sim.u .< t) for t in times]
-        plot!(plt, times, bankrupt_prob, label="τ = $τ", color = RGB(i/nτ, 0.2, 1-i/nτ))
+        lines!(ax, times, bankrupt_prob, label = "τ = $τ", color = RGBf(i/nτ, 0.2, 1-i/nτ))
     end
-    display(plt)
-    savefig(plt, "./figure/bankruptcy_prob_tax.png")
-end
-
-# plot V under different tax rate 
-begin
-    τs = 0.075:0.04:0.315
-    plts = []
-    for (i, τ) in enumerate(τs)
-        para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
-        V = solve_pde(para = para)
-        Q_grids = range(0.0, 0.2, 301)
-        B_grids = range(0.0, 2.0, 301)
-        Vs = [V(B, Q) for B in B_grids, Q in Q_grids]
-        push!(plts, contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "τ = $τ", c=:viridis, levels = 20, lw = 0))
-    end
-    plt = plot(plts..., layout = (2, 4), size = (3600, 1200))
-    display(plt)
-    savefig(plt, "./figure/V_tax.png")
-end
-
-begin
-    τs = 0.075:0.01:0.315
-    qs = similar(τs)
-    ext_fin_B, ext_fin_Q = (df.B[ext_finance_date_id], df.Q[ext_finance_date_id]) .|> (x -> round(x, digits = 3))
-    for (i, τ) in enumerate(τs)
-        para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
-        V = solve_pde(para = para, damp = 0.5)
-        qs[i] = para.q(V(ext_fin_B, ext_fin_Q))
-    end
-    plt = plot(τs, qs, title = "q($ext_fin_B, $ext_fin_Q; τ)", xlabel="τ", label="", c=:brown)
-    display(plt)
-    savefig(plt, "./figure/q_tax.png")
+    Legend(fig[1, 2], ax)
+    display(fig)
+    save("./figure/bankruptcy_prob_tax.png", fig, px_per_unit = 2)
 end
 
 # simulate one path for mechanism explain 
 begin
     x0 = [0.1, 0.0]
-    τs = [0.075, 0.14]
+    τs = [0.075, 0.13]
     times = 0.0:0.1:50.0
-    plts = []
-    Q_ubs = [0.05, 0.3]
-    B_ubs = [0.5, 5.0]
+    Q_ubs = [0.02, 0.3]
+    B_ubs = [0.2, 5.5]
+    mechanism_data = []
+
+    # Compute each scenario once. The stored results are reused for all variants.
     for (i, τ) in enumerate(τs)
         para = model(σ = res[1], α = res[2], ρ = res[3], τ = τ)
         V = solve_pde(para = para)
         Q_grids = range(0.0, Q_ubs[i], 301)
         B_grids = range(0.0, B_ubs[i], 301)
         Vs = [V(B, Q) for B in B_grids, Q in Q_grids]
-        plt = contourf(Q_grids, B_grids, Vs, xlabel = "Q", ylabel = "B", title = "τ = $τ", c=:viridis, levels = 20, lw = 0)
         sim = simulate(para; x0 = x0, n_sim = 1, tspan = (times[1], times[end]), seed = 302)
-        path = hcat(only.(sim.(times))...)
-        plot!(plt, path[2, :], path[1, :], label="", c=:brown, xlims = (Q_grids[1], Q_grids[end]), ylims = (B_grids[1], B_grids[end]), lw = 5)
-        push!(plts, plt)
+        trajectory = only(sim.u)
+        path_times = times[times .<= trajectory.t[end]]
+        path = hcat(trajectory.(path_times)...)
+        peak_id = argmax(path[1, :])
+        post_peak = peak_id:size(path, 2)
+        drawdown_candidates = post_peak[path[1, post_peak] .<= 0.7path[1, peak_id]]
+        drawdown_id = isempty(drawdown_candidates) ? peak_id : first(drawdown_candidates)
+        stage_ids = [1, drawdown_id, size(path, 2)]
+        stage_labels = ["Initial state", "Drawdown", "Bankruptcy"]
+        stage_colors = [:white, :orange, :red]
+        stage_valigns = [:bottom, :bottom, :bottom]
+        stage_offsets = [(8, 8), (8, 8), (8, 8)]
+        if peak_id > 1 && peak_id < size(path, 2)
+            insert!(stage_ids, 2, peak_id)
+            insert!(stage_labels, 2, "Peak fund level")
+            insert!(stage_colors, 2, :gold)
+            insert!(stage_valigns, 2, :top)
+            insert!(stage_offsets, 2, (8, -8))
+        end
+        if i == 2
+            early_id = argmin(abs.(path_times .- 5.0))
+            insert!(stage_ids, 2, early_id)
+            insert!(stage_labels, 2, "Early Recipients\n Choosing Monthly")
+            insert!(stage_colors, 2, :deepskyblue)
+            insert!(stage_valigns, 2, :bottom)
+            insert!(stage_offsets, 2, (8, 8))
+        end
+
+        push!(mechanism_data, (; τ, Q_grids, B_grids, Vs, path, stage_ids,
+            stage_labels, stage_colors, stage_valigns, stage_offsets))
     end
-    plt = plot(plts..., layout = (1, 2), size = (1600, 600))
-    display(plt)
-    savefig(plt, "./figure/mechanism.png")
+
+    function make_mechanism_figure(data, n_stages)
+        fig = Figure(size = (900, 650))
+        ax = Axis(fig[1, 1], xlabel = "Q", ylabel = "B",
+            title = "Pension Tax Rate = $(data.τ)")
+        contour_plot = contourf!(ax, data.Q_grids, data.B_grids,
+            permutedims(data.Vs), colormap = :viridis, levels = 20)
+        Colorbar(fig[1, 2], contour_plot, label = "V")
+
+        path = data.path
+        lines!(ax, path[2, :], path[1, :], color = (:white, 0.8), linewidth = 8)
+        lines!(ax, path[2, :], path[1, :], color = :brown, linewidth = 5)
+
+        arrow_ids = unique(round.(Int,
+            range(2, size(path, 2) - 1, length = min(4, size(path, 2) - 2))))
+        arrow_dx = path[2, arrow_ids .+ 1] .- path[2, arrow_ids .- 1]
+        arrow_dy = path[1, arrow_ids .+ 1] .- path[1, arrow_ids .- 1]
+        scatter!(ax, path[2, arrow_ids], path[1, arrow_ids]; marker = :utriangle,
+            rotation = atan.(arrow_dy, arrow_dx) .- pi / 2, markersize = 15,
+            color = :white, strokecolor = :brown, strokewidth = 2)
+
+        if n_stages > 0
+            ids = data.stage_ids[1:n_stages]
+            scatter!(ax, path[2, ids], path[1, ids],
+                color = data.stage_colors[1:n_stages], strokecolor = :black,
+                strokewidth = 2, markersize = 14)
+            for j in 1:n_stages
+                id = data.stage_ids[j]
+                textlabel!(ax, path[2, id], path[1, id];
+                    text = data.stage_labels[j],
+                    text_align = (:left, data.stage_valigns[j]),
+                    offset = data.stage_offsets[j], fontsize = 17,
+                    text_color = :black, background_color = (:white, 0.85),
+                    strokewidth = 0, padding = 3)
+            end
+        end
+
+        limits!(ax, first(data.Q_grids), last(data.Q_grids),
+            first(data.B_grids), last(data.B_grids))
+        return fig
+    end
+
+    for data in mechanism_data
+        tax_slug = replace(string(data.τ), "." => "")
+        base_fig = make_mechanism_figure(data, 0)
+        save("./figure/mechanism_tax_$(tax_slug)_stage_0_trajectory.png",
+            base_fig, px_per_unit = 2)
+
+        for n_stages in eachindex(data.stage_ids)
+            stage_slug = replace(lowercase(data.stage_labels[n_stages]),
+                r"[^a-z]+" => "_") |> x -> strip(x, '_')
+            stage_fig = make_mechanism_figure(data, n_stages)
+            save("./figure/mechanism_tax_$(tax_slug)_stage_$(n_stages)_$(stage_slug).png",
+                stage_fig, px_per_unit = 2)
+        end
+
+        final_fig = make_mechanism_figure(data, length(data.stage_ids))
+        display(final_fig)
+        save("./figure/mechanism_tax_$(tax_slug).png", final_fig, px_per_unit = 2)
+    end
 end
 
 # simulation for cutting benefit
 begin
     times = 0.0:1/12:50.0
-    cuts = 0.0:0.1:0.8
+    cuts = 0.0:0.1:0.6
     n = length(cuts)
     p_benchmark = model().p
     l_benchmark = model().l
-    plt = plot(title = "Bankruptcy Probability from Jun., 2026", xlabel = "year", leg=:outerright)
+    fig = Figure(size = (900, 600))
+    ax = Axis(fig[1, 1], title = "Bankruptcy Probability from Jun., 2026", xlabel = "Year", ylabel = "Bankruptcy probability")
     for (i, cut) in enumerate(cuts)
         para = model(σ = res[1], α = res[2], ρ = res[3], p = (1-cut) * p_benchmark, l = (1-cut) * l_benchmark)
         sim = simulate(para, output_func = (sol, ctx) -> (sol.t[end], false), tspan=(0.0, times[end]))
         bankrupt_prob = [mean(sim.u .< t) for t in times]
-        plot!(plt, times, bankrupt_prob, label="-$(100*cut)%", color = RGB(i/n, 0.2, 1-i/n))
+        lines!(ax, times, bankrupt_prob, label = "-$(100*cut)%", color = RGBf(i/n, 0.2, 1-i/n))
     end
-    display(plt)
-    savefig(plt, "./figure/bankruptcy_prob_cuts.png")
+    Legend(fig[1, 2], ax)
+    display(fig)
+    save("./figure/bankruptcy_prob_cuts.png", fig, px_per_unit = 2)
 end
