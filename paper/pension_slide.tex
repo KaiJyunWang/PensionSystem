@@ -18,7 +18,7 @@
 \usepackage{graphicx}
 \usepackage{xspace}
 \usepackage{hyperref}
-\usepackage[natbibapa]{apacite}
+%\usepackage[natbibapa]{apacite}
 \usepackage{mleftright}
 \usepackage[nameinlink]{cleveref}
 \usepackage{amsmath, amssymb, algorithm, algorithmicx, algpseudocode}
@@ -33,85 +33,61 @@
 \maketitle
 
 \begin{frame}{Motivation}
-    \begin{itemize}
-        \item Why people seldom annuitize the pension?
-        \begin{itemize}
-            \item[-] Retire later to accumulate more wealth.
-            \item[-] Retire earlier to withdraw more pension. 
-            \item[-] Reform Uncertainty.
-            \item[-] Run on the pension system.   
+    \begin{itemize}[<+->]
+        \item The Labor Insurance in Taiwan offers pension options of a lumpsum 
+        payment or a monthly pension. 
+        \item Should one choose lumpsum or monthly?
+        \item Consider a retiree that 
+        \begin{itemize}[<+->]
+            \item[-] earns over $45,800$ NTD a month, 
+            \item[-] has worked for $30$ years, 
+            \item[-] retiring at $65$, 
+            \item[-] and lives $12$ years after retirement.   
         \end{itemize}
-        \item Related literature: 
-        \begin{itemize}
-            \item[-] \textbf{Pension reform}: \cite{french2011, kitao2018,huixin2023, daminato2024, delalibera2026}. 
-            \item[-] \textbf{Bank run}: \cite{goldstein2005, he2012}.
-        \end{itemize}
+        \item Lumpsum: $2,061,000$ NTD. 
+        \item {\color{red}Monthly: $2,724,504$ NTD}. ($2\%$ annual rate)
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Background}
-    \begin{itemize}
-        \item Since 2009, one with insurance records before 2009 can 
-        choose between lumpsum and monthly scheme. 
-        \item For a recipient with average monthly insured salary NTD $45,800$ 
-        with 30 years of working retired at standard retirement age and lives 12 
-        years after retirement. 
-        \begin{itemize}
-            \item[-] Lumpsum: $2,061,000$ NTD.
-            \item[-] Monthly: $2,724,504$ NTD. ($2\%$ annual rate)
+\begin{frame}{Annuitization Puzzle}
+    \begin{itemize}[<+->]
+        \item Annuities insure against longevity
+        risk.
+        \item Low voluntary annuity purchases/participation. 
+        \item Why aren't annuities more popular?
+        \begin{itemize}[<+->]
+            \item[-] Adverse selection and actuarially unfavorable prices.
+            \item[-] Inflation risk and limited availability of indexed annuities.
+            \item[-] Pre-existing annuities from public and defined-benefit pensions.
+            \item[-] Bequests. 
+            \item[-] Medical-expense shocks and liquidity needs.
+            \item[-] Behavioral. 
+            \item[-] Exogenous provider-insolvency risk.
         \end{itemize}
-        \item Reform information shocks: 
-        \begin{itemize}
-            \item[-] Reform commitee established in 2012.
-            \item[-] Reform on Civil Servant Retirement Pension in 2017.  
-            \item[-] External finance from the government since 2020.  
-        \end{itemize}
+        \item \textbf{This paper:} Insolvency is endogenous---annuitization choices
+        change the fund's liabilities and its probability of depletion.
     \end{itemize}
 \end{frame}
 
-\section{Data}
-
-\begin{frame}[label=data-reconstruction]{Data}
-    \begin{itemize}
-        \item \textbf{Official monthly sources (since 2009):}
-        \begin{itemize}
-            \item[-] Bureau of Labor Funds: fund balance and investment return.
-            \item[-] Bureau of Labor Insurance: stocks of monthly recipients and
-            new lump-sum claims.
-            \item[-] Ministry of the Interior: population and mortality at ages 60+.
-        \end{itemize}
-        \item BLI reports new monthly recipients (first payments) only from May 2022.
-        Before then, reconstruct entries from the stock of monthly recipients:
-        \begin{equation*}
-            \begin{aligned}
-                \text{new monthly recipients}
-                ={}& \text{change in the recipient stock}
-                + \text{estimated deaths} \\
-                &+ \text{average correction from the overlap period}.
-            \end{aligned}
-        \end{equation*}
-        Estimated deaths use the monthly mortality rate implied by annual
-        mortality among Taiwan residents aged 60+; negative estimates are set to zero.
-    \end{itemize}
-    \hfill
-    \hyperlink{reconstruction-validation}{%
-        \beamergotobutton{View reconstruction validation}}
-\end{frame}
-
-\begin{frame}{Data}
-    \centering 
-    \includegraphics[scale=0.35]{../figure/state_data.png}
-\end{frame}
-
-\begin{frame}{Data}
-    \centering
-    \includegraphics[scale=0.35]{../figure/recipients.png}
+\begin{frame}[label=recipient-fraction]{How many people are choosing monthly?}
+    \begin{columns}[c,onlytextwidth]
+        \begin{column}{0.73\textwidth}
+            \centering
+            \includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{%
+                ../figure/recipient_fraction.png}
+        \end{column}
+        \begin{column}{0.25\textwidth}
+            \centering
+            \hyperlink{data-reconstruction}{%
+                \beamergotobutton{View data explanation}}
+        \end{column}
+    \end{columns}
 \end{frame}
 
 \section{Model}
 
 \begin{frame}{Model Overview}
-    \begin{itemize}
+    \begin{itemize}[<+->]
         \item Continuous time and an infinite horizon.
         \item A continuum of workers chooses once, at retirement age $T$,
         between a lump-sum benefit $\ell$ and a monthly pension $p$.
@@ -124,137 +100,137 @@
 \end{frame}
 
 \begin{frame}[label=population]{Population}
-    Let $g(t,s)$ denote the population density at age $s$:
-    \begin{equation*}
-        \frac{\partial g}{\partial t}
-        =-\underbrace{\frac{\partial g}{\partial s}}_{\text{aging}}
-        -\underbrace{m(s)g}_{\text{mortality}}
-        +\underbrace{\int b(s)g(t,s)\,ds\,\delta_0}_{\text{birth}}.
-    \end{equation*}
-    Assume $b(s)=b$ and $m(s)=m\mathbf{1}\{s\geq T_m\}$. In a steady-age
-    distribution, $N_t$ grows at rate $n$ and
-    \begin{equation*}
-        \hat g(s)=
-        \begin{cases}
-            be^{-ns}, & s<T_m,\\
-            be^{-ns}e^{-m(s-T_m)}, & s\geq T_m,
-        \end{cases}
-    \end{equation*}
-    where
-    \begin{equation*}
-        1=b\frac{1-e^{-nT_m}}{n}+be^{-nT_m}\frac{1}{n+m}.
-    \end{equation*}
-    \hfill
-    \hyperlink{population-density}{%
-        \beamergotobutton{View population density}}
+    \begin{itemize}[<+->]
+        \item Let $g(t,s)$ denote the population density at age $s$:
+        \begin{equation*}
+            \frac{\partial g}{\partial t}
+            \uncover<+->{=-\underbrace{\frac{\partial g}{\partial s}}_{\text{aging}}}
+            \uncover<+->{-\underbrace{m(s)g}_{\text{mortality}}}
+            \uncover<+->{, \quad
+            g(t, 0) = \underbrace{\int b(s)g(t,s)\,ds}_{\text{birth}}.}
+        \end{equation*}
+        \item Assumptions: 
+        \begin{itemize}[<+->]
+            \item[-] Constant fertility rate. 
+            \item[-] Exposes to constant mortality rate only after $T_m\leq T$.
+            \item[-] Stable nomalized population density. 
+        \end{itemize}
+        \item In steady state, normalized population density $\hat{g} = g / N_t$, $N_t = \int g(t, s)ds$ satisfies
+        \begin{equation*}
+            \hat g(s)=
+            \begin{cases}
+                be^{-ns}, & s<T_m,\\
+                be^{-ns}e^{-m(s-T_m)}, & s\geq T_m,
+            \end{cases}
+        \end{equation*}
+        where $dN_t = nN_tdt$ is the population growth rate.
+        \hyperlink{population-density}{%
+            \beamergotobutton{View population density}}
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Retiree Pension Choice}
+    \begin{itemize}[<+->]
+        \item A retiring individual chooses between lumpsum and monthly to maximize
+        \begin{equation*}
+            u_{it}(d)=
+            \begin{cases}
+                \uncover<+->{\alpha+\log(\underbrace{\ell}_{\text{lumpsum}})+\epsilon_i(\ell),}
+                & \uncover<.->{d=\text{lumpsum},}\\
+                \uncover<+->{\log(\underbrace{V(\hat B_t,\hat Q_t)}_{\text{PDV of monthly}})+\epsilon_i(p),}
+                & \uncover<.->{d=\text{pension}.}
+            \end{cases}
+        \end{equation*}
+        \item The PDV of monthly is 
+        \begin{equation*}
+            V(\hat B,\hat Q)
+            =\mathbb E\left[\left.\int_0^{T_{\hat B}}
+            e^{-(\rho+m)s}\underbrace{p}_{\text{monthly benefit}}\,ds\,\right|\,\hat B,\hat Q\right]
+        \end{equation*}
+        where $T_{\hat{B}}$ is the bankruptcy time.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Pension System}
-    Let $q_t$ be the share of new retirees choosing the monthly pension and
-    $Q_t$ the stock of monthly-benefit recipients. For $T\geq T_m$,
-    \begin{equation*}
-        dQ_t=\left[
-        \underbrace{q_t\hat g(T)N_t}_{\text{new retirees}}
-        -\underbrace{mQ_t}_{\text{mortality}}\right]dt.
-    \end{equation*}
-    The pension fund balance evolves according to
-    \small
-    \begin{align*}
-        dB_t={}&\left[
-        \underbrace{rB_t}_{\text{interest}}
-        +\underbrace{\tau yN_t\int_{T_w}^{T}\hat g(s)\,ds}_{\text{pension tax}}
-        -\underbrace{(1-q_t)\ell N_t\hat g(T)}_{\text{lump sum}}
-        -\underbrace{pQ_t}_{\text{monthly}}\right]dt\\
-        &
-        +\sigma B_t\,dZ_t.
-    \end{align*}
-    \normalsize
-    The system is bankrupt when $B_t$ first reaches zero.
+    \begin{itemize}[<+->]
+        \item Monthly recipients $Q_t$:
+        \begin{equation*}
+            dQ_t=\big[
+            \uncover<+->{\underbrace{q_t\hat g(T)N_t}_{\text{new retirees}}}
+            \uncover<+->{-\underbrace{mQ_t}_{\text{mortality}}}\big]dt.
+        \end{equation*}
+        \item $q_t$: share of monthly among new retirees.
+        \item Fund balance $B_t$: 
+        \begin{align*}
+            dB_t={}&\big[
+            \uncover<+->{\underbrace{rB_t}_{\text{return}}}
+            \uncover<+->{+\underbrace{\tau yN_t\int_{T_w}^{T}\hat g(s)\,ds}_{\text{pension tax}}}
+            \uncover<+->{-\underbrace{\ell(1-q_t) N_t\hat g(T)}_{\text{lump sum}}}
+            \uncover<+->{-\underbrace{pQ_t}_{\text{monthly}}}\big]dt
+            \uncover<+->{+\underbrace{\sigma B_t\,dZ_t}_{\text{stochastic}}}.
+        \end{align*}
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Detrended State Dynamics}
-    Define fund balance and recipients per capita by
-    $\hat B_t=B_t/N_t$ and $\hat Q_t=Q_t/N_t$. Then
-    \small
-    \begin{align*}
-        d\hat B_t={}&\left[
-        \underbrace{(r-n)\hat B_t}_{\text{net return}}
-        +\underbrace{\tau y\int_{T_w}^{T}\hat g(s)\,ds}_{\text{pension tax}}
-        -\underbrace{(1-q_t)\hat g(T)\ell}_{\text{lump sum}}
-        -\underbrace{p\hat Q_t}_{\text{monthly}}\right]dt
-        +\sigma\hat B_t\,dZ_t,\\
-        d\hat Q_t={}&\left[
-        \underbrace{q_t\hat g(T)}_{\text{new retirees}}
-        -\underbrace{(m+n)\hat Q_t}_{\text{mortality}}\right]dt.
-    \end{align*}
-    \normalsize
-    \begin{itemize}
+    \begin{itemize}[<+->]
+        \item Define per capita states
+        $\hat B_t=B_t/N_t$ and $\hat Q_t=Q_t/N_t$.
+        \begin{align*}
+            d\hat B_t={}&\big[
+            \underbrace{(r-n)\hat B_t}_{\text{net return}}
+            +\underbrace{\tau y\int_{T_w}^{T}\hat g(s)\,ds}_{\text{pension tax}}
+            -\underbrace{\ell(1-q_t)\hat g(T)}_{\text{lump sum}}
+            -\underbrace{p\hat Q_t}_{\text{monthly}}\big]dt
+            +\underbrace{\sigma\hat B_t\,dZ_t}_{\text{stochastic}},\\
+            d\hat Q_t={}&\big[
+            \underbrace{q_t\hat g(T)}_{\text{new retirees}}
+            -\underbrace{(m+n)\hat Q_t}_{\text{mortality}}\big]dt.
+        \end{align*}
         \item More lump-sum claims reduce the fund immediately.
         \item More monthly claims raise future liabilities through $\hat Q_t$.
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Individual Pension Choice}
-    A retiring individual chooses $d\in\{\ell,p\}$ with utility
-    \begin{equation*}
-        u_{it}(d)=
-        \begin{cases}
-            \alpha+\log(\ell)+\epsilon_i(\ell), & d=\ell,\\
-            \log(V(\hat B_t,\hat Q_t))+\epsilon_i(p), & d=p.
-        \end{cases}
-    \end{equation*}
-    The value of monthly benefits is
-    \begin{equation*}
-        V(\hat B,\hat Q)
-        =\mathbb E\left[\left.\int_0^{T_{\hat B}}
-        e^{-(\rho+m)s}p\,ds\,\right|\,\hat B,\hat Q\right].
-    \end{equation*}
-    With i.i.d.\ standard Gumbel $\epsilon_i$, the monthly-benefit 
-    recipient share is
-    \begin{equation*}
-        q(\hat B,\hat Q)
-        =\frac{1}{1+\exp\left(\alpha+\log(\ell)-\log(V(\hat B,\hat Q))\right)}.
-    \end{equation*}
-\end{frame}
-
-\begin{frame}{Equilibrium}
-    \begin{block}{Markov Equilibrium}
-        The equilibrium objects are the monthly-pension choice
-        $q(\hat B,\hat Q)$ and its value $V(\hat B,\hat Q)$ such that 
-        \begin{enumerate}
-            \item the state dynamics induced by $q$;
-            \item the value $V$ implied by the resulting bankruptcy time; and
-            \item the individual choices induced by $V$, which aggregate to $q$.
-        \end{enumerate}
-    \end{block}
+\begin{frame}{Aggregation and Equilibrium}
+    \begin{itemize}[<+->]
+        \item Assume the idiosyncratic preference $\epsilon_{it}(d)\sim \text{Gumbel}(0, 1)$. 
+        \begin{equation*}
+            q_t = q(\hat{B}_t, \hat{Q}_t) = \frac{1}{1+\exp\big(\alpha+\log(\underbrace{\ell}_{\text{lumpsum}})-\log(\underbrace{V(\hat B_t,\hat Q_t)}_{\text{PDV of monthly}})\big)}
+        \end{equation*}
+        \item In equilibrium: 
+        \begin{itemize}[<+->]
+            \item[-] Given belief on $T_{\hat{B}}$, new retirees choose between lumpsum and monthly optimally. 
+            \item[-] Individuals optimizing aggregates up to $q_t$.  
+            \item[-] $q_t$ implies the state dynamics consistent with the belief on $T_{\hat{B}}$.
+        \end{itemize}
+    \end{itemize}
     
 \end{frame}
 
 \begin{frame}[label=numerical-solution]{Value Function and Numerical Solution}
-    The monthly-pension value solves the nonlinear HJB equation
-    \begin{equation*}
-        (\rho+m)V=p+\mathcal A V,
-        \qquad V(0,\hat Q)=0,
-    \end{equation*}
-    where
-    \begin{equation*}
-        \mathcal{A}f
-        =\mu_B\pd{f}{\hat{B}}
-        +\mu_Q\pd{f}{\hat{Q}}
-        +\frac{1}{2}\sigma^2\hat{B}^2
-        \pdd{f}{\hat{B}}.
-    \end{equation*}
-    \begin{itemize}
-        \item Nonlinearity arises because $\mu_B$ and $\mu_Q$ depend on
-        $q$, which depends on $V$.
+    \begin{itemize}[<+->]
+        \item The PDV of monthly solves the nonlinear HJB equation
+        \begin{equation*}
+            \begin{split}
+                (\rho+m)V(\hat{B}, \hat{Q})&=\uncover<+->{\underbrace{p}_{\text{monthly benefit}}}\\ 
+                &\uncover<+->{+\underbrace{\big[(r-n)\hat B_t
+                +\tau y\int_{T_w}^{T}\hat g(s)\,ds
+                -\ell(1-q_t)\hat g(T)
+                -p\hat Q_t\big]}_{\text{drift of $\hat{B}$}}\pd{V}{\hat{B}}} \\ 
+                &\uncover<+->{+\underbrace{\big[q_t\hat g(T)-(m+n)\hat Q_t\big]}_{\text{drift of $\hat{Q}$}}\pd{V}{\hat{Q}}}
+                \uncover<+->{+ \frac{1}{2}(\underbrace{\sigma \hat{B}_t}_{\text{diffusion of $\hat{B}$}})^2\pdd{V}{\hat{B}}}
+            \end{split}
+        \end{equation*}
+        \item Boundary condition: $V(0, \hat{Q}) = 0$. 
         \item At a sufficiently large upper boundary, impose
         $\partial V/\partial\hat B\approx0$.
         \item Solve by finite differences and successive iteration, 
         equivalent to semi-implicit scheme with $dt = \infty$. 
-    \end{itemize}
-    \hfill
-    \hyperlink{numerical-algorithm}{%
+        \hyperlink{numerical-algorithm}{%
         \beamergotobutton{View algorithm}}
+    \end{itemize}
 \end{frame}
 
 \section{Results}
@@ -277,42 +253,62 @@
     \end{table}
 \end{frame}
 
-\begin{frame}{Validation}
+\begin{frame}{Estimated $V$}
+    \centering
+    \only<1>{\includegraphics[scale=0.5]{../figure/estimated_V.png}}
+    \only<2>{\includegraphics[scale=0.5]{../figure/estimated_V_higher_fund.png}}
+    \only<3>{\includegraphics[scale=0.5]{../figure/estimated_V_more_monthly_recipients.png}}
+\end{frame}
+
+\begin{frame}{Model Fit}
     \centering
     \includegraphics[scale=0.5]{../figure/validation_q.png}
 \end{frame}
 
-\begin{frame}{Estimated $V$}
+\begin{frame}{Low Pension Tax Rate}
     \centering
-    \includegraphics[scale=0.5]{../figure/estimated_V.png}
+    \only<1>{\includegraphics[scale=0.45]{../figure/mechanism_tax_0075_stage_0_trajectory.png}}
+    \only<2>{\includegraphics[scale=0.45]{../figure/mechanism_tax_0075_stage_1_initial_state.png}}
+    \only<3>{\includegraphics[scale=0.45]{../figure/mechanism_tax_0075_stage_2_drawdown.png}}
+    \only<4>{\includegraphics[scale=0.45]{../figure/mechanism_tax_0075_stage_3_bankruptcy.png}}
 \end{frame}
 
-\begin{frame}{Externalities}
+\begin{frame}{Medium Pension Tax Rate}
     \centering
-    \includegraphics[scale=0.25]{../figure/mechanism.png}
+    \only<1>{\includegraphics[scale=0.45]{../figure/mechanism_tax_013_stage_0_trajectory.png}}
+    \only<2>{\includegraphics[scale=0.45]{../figure/mechanism_tax_013_stage_1_initial_state.png}}
+    \only<3>{\includegraphics[scale=0.45]{../figure/mechanism_tax_013_stage_2_early_recipients_choosing_monthly.png}}
+    \only<4>{\includegraphics[scale=0.45]{../figure/mechanism_tax_013_stage_3_peak_fund_level.png}}
+    \only<5>{\includegraphics[scale=0.45]{../figure/mechanism_tax_013_stage_4_drawdown.png}}
+    \only<6>{\includegraphics[scale=0.45]{../figure/mechanism_tax_013_stage_5_bankruptcy.png}}
 \end{frame}
 
-\begin{frame}{Externalities}
-    \begin{itemize}
-        \item \textbf{Liquidity Channel}: 
-        \begin{itemize}
-            \item[-] Weak fundamental $\longrightarrow$ near bankruptcy $\longrightarrow$ lumpsum dominates 
-            $\longrightarrow$ accelerate bankruptcy 
+\begin{frame}{Wrap up}
+    \begin{itemize}[<+->]
+        \item Low pension tax rate: 
+        \begin{itemize}[<+->]
+            \item[-] Weak fundamental \\
+            \uncover<+->{$\longrightarrow$ Bankruptcy time $\downarrow$} \\
+            \uncover<+->{$\longrightarrow$ Fraction of monthly $\downarrow$} \\
+            \uncover<+->{$\longrightarrow$ Bankruptcy time $\downarrow$.}
         \end{itemize}
-        \item \textbf{Solvency Channel}: 
-        \begin{itemize}
-            \item[-] Stronger but still insolvent fundamental $\longrightarrow$ later bankruptcy 
-            $\longrightarrow$ initially monthly dominates 
-            $\longrightarrow$ add stress on fund balance
+        \item Medium pension tax rate: 
+        \begin{itemize}[<+->]
+            \item[-] Stronger fundamental \\
+            \uncover<+->{$\longrightarrow$ Bankruptcy time $\uparrow$} \\
+            \uncover<+->{$\longrightarrow$ Fraction of monthly $\uparrow$} \\
+            \uncover<+->{$\longrightarrow$ Fund level $\uparrow$ + Monthly recipients $\uparrow$} \\
+            \uncover<+->{$\longrightarrow$ When too many monthly recipients, fund level $\downarrow\downarrow$} \\ 
+            \uncover<+->{$\longrightarrow$ Fraction of monthly $\downarrow$ + Many monthly recipients} \\ 
+            \uncover<+->{$\longrightarrow$ Bankruptcy time $\downarrow\downarrow$.}
         \end{itemize}
     \end{itemize}
 \end{frame}
 
 \begin{frame}{Counterfactuals}
     \begin{itemize}
-        \item Experiments 
-        \begin{itemize}
-            \item[-] Simulate from 2020. 
+        \item Experiments simulated from June 2026.
+        \begin{itemize}[<+->]
             \item[-] No monthly option or lumpsum option ($\alpha\to\pm\infty$).
             \item[-] Raise pension tax rate.
             \item[-] Cut benefits.
@@ -322,7 +318,13 @@
 
 \begin{frame}{Bankruptcy Probabilities}
     \centering
-    \includegraphics[scale=0.5]{../figure/bankruptcy_prob.png}
+    \begin{tikzpicture}
+        \node[inner sep=0] (simulated-plot) {%
+            \includegraphics[scale=0.5]{../figure/bankruptcy_prob.png}};
+        \only<2>{%
+            \node[fill=white, inner sep=1pt] at (simulated-plot.center) {%
+                \includegraphics[width=0.8\textwidth]{../figure/LIF_report.png}};}
+    \end{tikzpicture}
 \end{frame}
 
 \begin{frame}{Bankruptcy Probabilities for Different $\tau$}
@@ -337,17 +339,18 @@
 
 
 \begin{frame}{Conclusions}
-    \begin{itemize}
+    \begin{itemize}[<+->]
         \item Take away:
-        \begin{itemize}
-            \item[-] The more generous monthly scheme creates the solvency issue.
-            \item[-] Raising tax rate to $23.5\%$ or cutting benefits by $70\%$ reduces 
+        \begin{itemize}[<+->]
+            \item[-] Early recipients are incentivized to take monthly, building up the fragility. 
+            \item[-] Lumpsum option accelerates the bankruptcy. 
+            \item[-] Raising tax rate to $23.5\%$ or cutting benefits by $60\%$ reduces 
             the bankruptcy probabilities within 50 years near $0$. 
         \end{itemize}
         \item To do:
-        \begin{itemize}
+        \begin{itemize}[<+->]
             \item[-] Relax the mortality assumption. 
-            \item[-] Belief process. 
+            \item[-] Belief on government's reform attitude. 
             \item[-] Endogenous retirement. 
             \item[-] Boom period in return. 
         \end{itemize}
@@ -356,12 +359,77 @@
 
 \section{Appendix}
 
-\begin{frame}[label=reconstruction-validation]{Reconstruction Validation}
-    \centering
-    \includegraphics[height=0.78\textheight]{../figure/validate_reconstruction.png}
+\begin{frame}[label=data-reconstruction]{Data Explanation}
+    \begin{itemize}
+        \item \textbf{Official monthly sources (since 2009):}
+        \begin{itemize}
+            \item[-] Bureau of Labor Funds: fund balance and investment return.
+            \item[-] Bureau of Labor Insurance: stocks of monthly recipients and
+            new lump-sum claims.
+            \item[-] Ministry of the Interior: population and mortality at ages 60+.
+        \end{itemize}
+        \item BLI reports new monthly recipients (first payments) only from May 2022.
+        Before then, reconstruct entries from the stock of monthly recipients:
+        \begin{equation*}
+            \begin{aligned}
+                \text{new monthly recipients}
+                ={}& \text{change in the recipient stock}
+                + \text{estimated deaths} \\
+                &+ \text{average correction from the overlap period}.
+            \end{aligned}
+        \end{equation*}
+        Estimated deaths use the monthly mortality rate implied by annual
+        mortality among Taiwan residents aged 60+; negative estimates are set to zero.
+    \end{itemize}
 
     \vspace{0.25em}
-    \hyperlink{data-reconstruction}{\beamerreturnbutton{Back to data reconstruction}}
+    \hyperlink{recipient-fraction}{%
+        \beamerreturnbutton{Back to recipient fraction}}
+\end{frame}
+
+\begin{frame}[label=reconstruction-validation]{Reconstruction Validation}
+    \begin{columns}[c,onlytextwidth]
+        \begin{column}{0.73\textwidth}
+            \centering
+            \includegraphics[height=0.78\textheight,width=\textwidth,keepaspectratio]{%
+                ../figure/validate_reconstruction.png}
+        \end{column}
+        \begin{column}{0.25\textwidth}
+            \centering
+            \hyperlink{recipient-fraction}{%
+                \beamerreturnbutton{Back to recipient fraction}}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}[label=recipient-data]{Data}
+    \begin{columns}[c,onlytextwidth]
+        \begin{column}{0.73\textwidth}
+            \centering
+            \includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{%
+                ../figure/recipients.png}
+        \end{column}
+        \begin{column}{0.25\textwidth}
+            \centering
+            \hyperlink{recipient-fraction}{%
+                \beamerreturnbutton{Back to recipient fraction}}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}[label=state-data]{Data}
+    \begin{columns}[c,onlytextwidth]
+        \begin{column}{0.73\textwidth}
+            \centering
+            \includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{%
+                ../figure/state_data.png}
+        \end{column}
+        \begin{column}{0.25\textwidth}
+            \centering
+            \hyperlink{recipient-fraction}{%
+                \beamerreturnbutton{Back to recipient fraction}}
+        \end{column}
+    \end{columns}
 \end{frame}
 
 \begin{frame}[label=population-density]{Population Density}
@@ -381,9 +449,9 @@
     \hyperlink{numerical-solution}{\beamerreturnbutton{Back to numerical solution}}
 \end{frame}
 
-\begin{frame}<0>[allowframebreaks]{References}
-    \bibliographystyle{apacite}
-    \bibliography{pension}
-\end{frame}
+% \begin{frame}<0>[allowframebreaks]{References}
+%    \bibliographystyle{apacite}
+%    \bibliography{pension}
+% \end{frame}
 
 \end{document}
