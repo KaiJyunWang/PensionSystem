@@ -1,0 +1,433 @@
+\documentclass[a4paper, 12pt]{article}
+\input{prefix_pension.tex}%
+\input{symbols_pension.tex}
+
+\title{Extension to Pension Run}
+
+\author{Kai-Jyun Wang\and Kuan-Ming Chen}
+
+\begin{document} 
+\setstretch{1.15}
+
+\maketitle
+
+\section{Introduction}
+Why do retirees give up longevity insurance? In the canonical life-cycle model,
+an individual who faces an uncertain lifetime should convert a substantial share
+of wealth into an annuity. Pooling mortality risk allows an annuity to sustain
+consumption for as long as the retiree lives, a protection that self-insurance
+cannot provide as cheaply \citep{yaari1965,davidoff2005}. Yet observed
+annuitization is limited: even when retirees are offered a direct choice between
+a lump-sum benefit and a stream of lifetime payments, many choose the lump sum.
+This gap between the theoretical value of longevity insurance and actual choices
+is the annuitization puzzle \citep{brown2008,benartzi2011}.
+
+Most explanations of the puzzle treat the value of the promised annuity as
+independent of other retirees' choices. That assumption is natural for an
+actuarially fair contract backed by a solvent insurer, but it is less innocuous
+for benefits paid by a financially vulnerable pension fund. A lifetime payment
+is valuable only while the provider remains able and willing to pay. When a fund
+is expected to become depleted, the effective maturity of its monthly benefit is
+shortened. A retiree may then rationally prefer an immediate lump sum even when
+the scheduled, undiscounted value of monthly benefits is larger. Low
+annuitization can therefore reflect not only preferences for liquidity or
+bequests, but also exposure to provider-solvency risk.
+
+The central tension is that the annuity is the more generous option if all
+promised payments are honored, yet its generosity can undermine the promise
+itself. When early cohorts choose monthly benefits, they build a persistent stock
+of long-lived liabilities. In the environment we study, those obligations
+eventually deplete the fund, whereas the fund remains sustainable if every
+generation instead takes the less generous lump-sum benefit. Insolvency is
+therefore not simply an exogenous reason to avoid annuitization; it can be the
+equilibrium consequence of earlier cohorts accepting the annuity offer.
+
+This intergenerational feedback gives the pension run two stages. Early
+recipients choose the more valuable monthly benefit and gradually weaken the
+fund's solvency. Once the accumulated obligations make depletion sufficiently
+likely, later retirees discount the promised stream and switch toward immediate
+lump-sum claims. These large current withdrawals can bring depletion forward and
+further reduce the value of annuitization. We call this feedback a \emph{pension
+run}. Unlike a standard bank run, retirees do not withdraw identical demandable
+claims at the same time. They make a one-time choice as they retire, so aggregate
+fragility develops through a sequence of benefit-maturity decisions across
+generations.
+
+This paper develops a continuous-time model of that mechanism. New retirees
+choose between an immediate lump-sum payment and a life-contingent monthly
+benefit. Their choice depends on the present value of monthly payments, which in
+turn depends on the stochastic time at which the pension fund is depleted.
+Individual choices determine both current withdrawals and the stock of monthly
+beneficiaries, feeding back into the fund's dynamics and its bankruptcy time.
+The equilibrium is summarized by a nonlinear valuation equation linking the
+fund balance, outstanding pension liabilities, annuity demand, and solvency.
+The framework thus turns one possible explanation of the annuitization puzzle
+into an equilibrium source of pension-system fragility.
+
+\paragraph{Related literature.}
+This paper contributes first to the literature on annuity demand. The benchmark
+result is that households facing uncertain lifetimes value annuities because
+they insure consumption against longevity risk \citep{yaari1965,davidoff2005}.
+Observed behavior falls well short of this benchmark. Using U.S. Health and
+Retirement Study data, \citet{brown2001} finds that the life-cycle value of an
+annuity predicts whether defined-contribution balances are annuitized, but leaves
+much of the observed choice unexplained. \citet{dushi2004} likewise document very
+low purchases of additional annuities among older U.S. households. Evidence from
+the United Kingdom also shows limited participation in the voluntary annuity
+market \citep{inkmann2011}. Even when an annuity is offered directly within a
+pension plan, a substantial minority takes cash: in U.S. pension data,
+\citet{hurd2006} find that 20 percent of benefits offering a lump-sum option are
+cashed out. Taken together, these studies establish a persistent gap between the
+large theoretical gains from longevity insurance and retirees' willingness to
+annuitize, although its magnitude varies with the institutional setting
+\citep{benartzi2011}.
+
+The literature offers several explanations for this gap. Adverse selection
+raises the price and lowers the money's worth of voluntary annuities because
+individuals with private information that they are long-lived are more likely to
+purchase them \citep{finkelstein2002}. Fixed nominal annuities expose retirees to
+inflation risk, while inflation-indexed products have historically been scarce
+in private markets \citep{brown2002inflation}. Public pensions and
+defined-benefit plans also pre-annuitize a large share of household wealth,
+reducing the marginal value of purchasing additional longevity insurance
+\citep{dushi2004}. Health and medical-expense shocks create a separate demand for
+liquid wealth. When high medical costs are correlated with changes in mortality,
+the remaining value of an annuity can be especially low precisely when those
+expenses arise \citep{reichling2015}. Bequest motives, other liquidity needs, and
+the framing of annuity products provide additional explanations
+\citep{brown2008}.
+
+Most closely related to our mechanism, \citet{hui2021} show that real and
+perceived provider-insolvency risk, together with imperfect information about
+guaranty protection, can substantially reduce annuity demand and welfare. In
+their analysis, households take the provider's insolvency risk as given when
+choosing how much to annuitize. In our setting, insolvency is endogenous:
+retirees' choices between lump-sum and monthly benefits alter the fund's cash
+flows and hence its probability of depletion. Annuity demand, provider solvency,
+and the value of the annuity are therefore jointly determined in equilibrium.
+
+Second, the paper relates to research on the sustainability and reform of public
+pensions. Demographic aging erodes the contribution base and expands benefit
+obligations, creating adjustments in taxes, benefits, retirement ages, labor
+supply, and private saving \citep{attanasio2007,boerschsupan2016}. Structural
+analyses quantify how pension institutions and reforms reshape retirement and
+life-cycle decisions \citep{french2011,kitao2018,daminato2024,delalibera2026}.
+Our focus is complementary. We hold the principal policy parameters fixed and
+ask how a benefit-withdrawal option can propagate financial stress even before a
+reform occurs. This introduces beneficiary composition---the division of new
+retirees between immediate and deferred claims---as an endogenous determinant of
+pension solvency.
+
+Relatedly, our mechanism connects to evidence that retirement decisions respond
+to expectations about future pension policy. \citet{huixin2023} show that the
+timing of pension retrenchments matters: immediately implemented reforms delay
+retirement, whereas reforms announced with long implementation lags can bring
+retirement forward, particularly when the reform is fundamental or trust in
+government is low. We likewise emphasize forward-looking responses to the
+credibility of future benefits. In our setting, however, the relevant uncertainty
+arises endogenously from the fund's financial state, and retirees' responses feed
+back into that state rather than merely responding to an externally specified
+reform path.
+
+Finally, the paper is related to models of runs and maturity choice. The classic
+bank-run literature shows how individually optimal withdrawals can generate
+aggregate fragility \citep{diamond1983,goldstein2005}. The closest structural
+analogue is the dynamic debt-run model of \citet{he2012}, in which creditors arrive
+sequentially and decide whether to roll over maturing short-term debt. We retain
+the stochastic fundamental, staggered decisions, and endogenous default time,
+but the underlying claim is different. A retiree chooses once between an
+immediate payment and a life-contingent stream; this choice changes both current
+outflows and the evolving stock of monthly-benefit recipients. The pension run
+therefore operates through endogenous benefit maturity and demographic turnover,
+rather than repeated rollover of fixed-maturity debt.
+
+\section{Institutional Background}
+\subsection{Labor Insurance old-age benefits}
+The empirical setting is the old-age benefit provided by Taiwan's Labor
+Insurance program. This social-insurance benefit is distinct from the Labor
+Pension system, under which employers contribute to workers' individual
+retirement accounts. Labor Insurance is financed collectively by premiums and
+the assets of the Labor Insurance Fund, and benefits are administered by the
+Bureau of Labor Insurance (BLI).
+
+An old-age pension was introduced on January 1, 2009. An insured worker with at
+least 15 years of coverage may claim a monthly pension after leaving employment
+and reaching the statutory claim age. The statutory age increased gradually
+from 60 and reaches 65 in 2026. A worker may claim up to five years early or
+defer for up to five years; the monthly benefit is reduced or increased by 4
+percent for each year. At the normal claim age, the BLI pays the larger amount
+implied by
+\begin{equation}\label{eq:taiwan_annuity}
+    p = \max\left\{0.00775\,wY+3{,}000,\;
+                    0.0155\,wY\right\},
+\end{equation}
+where $w$ is the average of the worker's highest 60 monthly insured salaries and
+$Y$ is years of coverage.
+
+The 2009 reform created the choice studied in this paper. Workers with any Labor
+Insurance coverage before December 31, 2008 may choose either the monthly
+pension or the pre-reform \emph{one-time old-age benefit}; the choice is
+irreversible once the BLI approves and pays the claim. Workers first insured in
+2009 or later cannot choose the pre-reform benefit. The
+one-time benefit generally pays one month of average insured salary for each of
+the first 15 coverage years and two months for each additional year, subject to
+a ceiling of 45 months before age 60 and 50 months including post-60 coverage.
+This grandfathered payment is the lump sum in our model. It should not be
+confused with the separately defined \emph{old-age lump-sum benefit} for workers
+with fewer than 15 years of coverage, whom we exclude from the choice sample.
+
+The statutory formulas make the annuity potentially much more generous than the
+lump sum. For example, a worker with an average insured salary of NT\$45,800 and
+30 years of coverage receives NT\$2.061 million under the one-time formula but
+NT\$21,297 per month under the second formula in \cref{eq:taiwan_annuity}. If the
+worker receives the pension for 12 years, its present value at a 2 percent annual
+discount rate is approximately NT\$2.72 million. The monthly option therefore
+offers valuable longevity insurance as well as a larger expected transfer, but
+it also creates a persistent liability for the common fund. This difference is
+the institutional basis for the tradeoff in our model.
+
+Taiwan's government has made direct budgetary contributions to the Labor
+Insurance Fund since 2020. Accordingly, ``bankruptcy'' in the model
+does not mean that current law mechanically terminates benefits when recorded
+assets reach zero. It denotes exhaustion of the fund under existing contribution
+and benefit rules---the point at which continued payment requires an additional
+fiscal transfer or a reform. The baseline estimation ends in December 2019 to
+identify the fund's endogenous dynamics before regular government injections;
+the later observations remain useful for describing choices and validating the
+entry reconstruction.
+
+\section{Data}
+\subsection{Sources and sample construction}
+We construct a monthly panel beginning in January 2009, when the old-age pension
+was introduced. The current data vintage ends in June 2026, the latest month for
+which all component series are available. The panel combines three official
+sources. First, monthly reports from the Bureau of Labor Funds (BLF) provide the
+exact month-end balance and investment return of the Labor Insurance Fund. We
+read the balance from the report's asset-allocation table rather than its rounded
+narrative total. The fund included both ordinary and occupational-accident
+insurance through April 2022; following the institutional separation in May
+2022, the reported Labor Insurance Fund contains only ordinary insurance.
+Second, BLI statistical tables provide the stock of
+old-age-pension recipients, pension recipients receiving their first payment,
+and claims for the one-time old-age benefit.
+Third, Ministry of the Interior (MOI) population files provide monthly registered
+population and annual population and deaths by age.
+
+We retain only one-time old-age benefit claims as lump-sum choices. In
+particular, we exclude the old-age lump-sum benefit for short coverage histories
+and the old-age difference payment because neither represents the same choice
+between the grandfathered lump sum and the monthly pension. Let $L_t$ denote the
+number of qualifying one-time claims in month $t$, $Q_t$ the stock of monthly
+pension recipients, and $A_t$ the number entering the monthly scheme. The
+empirical monthly-choice share is
+\begin{equation}\label{eq:data_q}
+    q_t = \frac{A_t}{A_t+L_t}.
+\end{equation}
+The two state variables used in estimation are the fund balance per registered
+resident, $B_t/N_t$, and monthly pension recipients per resident, $Q_t/N_t$.
+
+\subsection{Reconstructing entries into the monthly scheme}
+The BLI reports $Q_t$ throughout the sample, but identifies first-payment
+recipients only from May 2022 onward. A change in $Q_t$ is not itself an entry
+measure because recipients leave the stock when they die. For the earlier
+period, we reconstruct monthly entries from the accounting identity
+\begin{equation}\label{eq:entry_reconstruction}
+    \widehat A_t
+    = \max\left\{0,\;Q_t-Q_{t-1}+\delta_t Q_{t-1}+c\right\},
+\end{equation}
+where $\delta_t$ is the monthly mortality probability for Taiwan residents aged
+60 and older. We calculate the corresponding annual death probability from MOI
+age-specific deaths and population, then convert it to a monthly probability as
+$1-(1-d_t)^{1/12}$. If the current year's age table has not yet been released,
+we carry forward the latest available annual rate.
+
+The constant $c$ corrects for systematic differences between the stock-flow
+identity and reported first payments. We estimate it over the post-May-2022
+overlap as the mean of $A_t-(Q_t-Q_{t-1}+\delta_tQ_{t-1})$. In the current data
+vintage, the overlap contains 50 months and yields $c=-2{,}452.84$ recipients per
+month; the mean absolute reconstruction error in that validation period is 179
+recipients. We use reported first payments whenever they are available and the
+adjusted reconstruction beforehand. Equation \eqref{eq:entry_reconstruction}
+assumes that mortality is the only exit from the recipient stock and applies the
+mortality of all residents aged 60 and older to Labor Insurance beneficiaries.
+The reconstructed early series should therefore be interpreted as a measurement
+of annuity entry rather than an exact administrative count.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.72\textwidth]{../figure/recipients.png}
+    \caption{New Labor Insurance old-age benefit recipients}
+    \label{fig:recipients}
+\end{figure}
+
+\section{Model}
+\subsection{Demographics}
+Let $b$ be the fertility rate and $m(s)$ the mortality rate. We assume 
+that the individuals cannot live longer than $T$ and $n(t, T) = 0$. Let 
+$n(t,s)$ be the unnormalized population density. The population dynamic 
+is given by 
+\begin{equation}
+    \pd{n}{t}(t, s) = -\pd{n}{s}(t, s) - m(s)n(t,s), \quad n(t, 0) = b\int_0^T n(t, s)ds.
+\end{equation}
+Let $N_t = \int_0^T n(t, s)ds$ be the total population. Detrending 
+the population equation by $\hat{n}_t = n_t/N_t$ gives 
+\begin{equation}
+    \pd{\hat{n}}{t}(t, s) = -\pth{\frac{\dot{N}(t)}{N(t)} + m(s)}\hat{n}(t, s) - \pd{\hat{n}}{s}(t, s), 
+    \quad \hat{n}(t, 0) = b. 
+\end{equation} 
+The population growth rate $\eta_t$ is given by 
+\begin{equation}
+    \begin{split}
+        \frac{\dot{N}_t}{N_t} &= \frac{\int_0^T \pd{n}{t}ds}{\int_0^T n(t, s)ds} 
+        = \frac{\int_0^T -\pd{n}{s}(t, s) - m(s)n(t,s)ds}{\int_0^T n(t, s)ds} \\
+        &= \frac{-(n(t, T) - n(t, 0)) -\int_0^T m(s)n(t,s)ds}{\int_0^T n(t, s)ds} 
+        = b - \int_0^T m(s)\hat{n}(t,s)ds
+    \end{split}
+\end{equation}
+In the steady state, the population grows at a constant rate 
+$\eta_t = \frac{\dot{N}(t)}{N(t)}$. The steady state $\hat{n}$ is 
+given by 
+\begin{equation}
+    \bar{n}(s) = b\exp\pth{-\int_0^s \eta + m(x)dx}. 
+\end{equation}
+The normalization condition $\int_0^T \bar{n}(s)ds = 1$ 
+determines $\eta$: 
+\begin{equation}
+    b\int_0^T \exp\pth{-\int_0^s \eta + m(x)dx}ds = 1.
+\end{equation}
+
+\subsection{Household}
+\paragraph{Retirees.} 
+Given the interest rate $r$, a retiree that dose not 
+participate the monthly plan maximizes 
+\begin{equation}
+    V_t^{\ell} = \max \int_t^T e^{-\int_t^s \rho + m(x)dx}\sbrc{u(c_s) + m(s)b(a_s)}ds
+\end{equation}
+subject to 
+\begin{align}
+    \dot{a}_t &= r_ta_t + \tr_t - c_t \\ 
+    a_t &\geq 0. 
+\end{align}
+The utility flow is given by 
+\begin{equation}
+    u(c) = \frac{c^{1-\gamma}}{1-\gamma}
+\end{equation} 
+and the bequest motive follows \cite{denardi2004} and 
+\cite{french2011}: 
+\begin{equation}
+    b(a) = \theta_b\frac{(a + \kappa)^{1-\gamma}}{1-\gamma}.
+\end{equation}
+We assume that the transfer $\tr_t$ is a flow from the bequest, 
+which is assumed to be distributed uniformly to all agents alive. 
+
+For a retiree participating the monthly plan, the consumption 
+policy solves 
+\begin{equation}
+    V_t^{m} = \max \int_t^Te^{-\int_t^s \rho + m(x)dx}\sbrc{u(c_s) + m(s)b(a_s)}ds
+\end{equation}
+subject to 
+\begin{align}
+    \dot{a}_t &= r_ta_t + \tr_t + p - c_t \\ 
+    a_t &\geq 0. 
+\end{align}
+
+\paragraph{Workers.}
+Given interest rate $r_t$ and wage $w_t$, the households consume 
+optimally to maximize
+\begin{equation}
+    V_t^w = \E_t\sbrc{\int_t^Te^{-\int_t^s \rho + m(x)dx}\sbrc{u(c_s) - \psi(s) + m(s)b(a_s)}ds}
+\end{equation}
+subject to 
+\begin{align}
+    \dot{a}_t &= r_ta_t + (y_t-\tau(y_t)) + \tr_t - c_t \\
+    a_t &\geq 0 \\ 
+    y_t &= w_t\exp(\bar{z}(t) + z_t)
+\end{align}
+where $\bar{z}(t)$ is the earning profile and $z_t\in\mathcal{Z} 
+= \set{z_0,\ldots,z_k}$ follows a continuous time Markov chain with 
+intensity matrix $\Lambda$. We take $z_0 = -\infty$ for the unemployment 
+state. The $\psi$ is the disutility to work. The pension tax $\tau$ 
+is of the form 
+\begin{equation}
+    \tau(y) = \min\set{\tau_0y, \tau_1}
+\end{equation}
+which is truncated from above.
+
+We allow the workers to retire at any age. Yet, the pension is 
+only available for those retiring within the retirement window 
+$[\underline{T_r}, \overline{T_r}]$. The retirement status 
+\begin{equation}
+    R_t\in\set{\text{not to retire}, \text{retire with lumpsum}, \text{retire with pension}}.
+\end{equation} 
+The retirees cannot return to work.
+
+\subsection{Firms}
+The production function is given by 
+\begin{equation}
+    Y_t = AK_t^\alpha L_t^{1-\alpha}.
+\end{equation}
+Given $r_t, w_t$, the firms solve 
+\begin{equation}
+    \max_{K_t, L_t}AK_t^\alpha L_t^{1-\alpha} - r_tK_t - w_tL_t
+\end{equation}
+where $L_t$ is the aggregate effective labor. Taking the FOC and 
+detrending by $N_t$ gives 
+\begin{equation}
+    A\pth{\frac{\hat{K}_t}{\hat{L}_t}}^\alpha = A\pth{\frac{K_t}{L_t}}^\alpha = \frac{w_t}{1-\alpha}, \quad \text{and}\quad
+    A\pth{\frac{\hat{K}_t}{\hat{L}_t}}^{\alpha-1} = A\pth{\frac{K_t}{L_t}}^{\alpha-1} = \frac{r_t}{\alpha}.
+\end{equation}
+
+\subsection{Pension System}
+The government collect pension taxes from the labor income and 
+finance the pension payments $\ell$ and $p$. Let pension fund balance 
+be $B_t$. The budget constraint is given by 
+\begin{equation}
+    \begin{split}
+        dB_t &= \bigg[ r_t B_t + N_t\int \tau_w(w, z)wzd\mathfrak{M}_t \\ 
+        &- N_t\ell\mathfrak{M}_t(\text{retiring with lumpsum}) - N_tp\mathfrak{M}_t(\text{retired with monthly}) \bigg]dt.
+    \end{split}
+\end{equation}
+where $Z_t$ is a Brownian motion. Detrending gives
+\begin{equation}
+    \begin{split}
+        d\hat{B}_t &= \bigg[ (r_t-\eta_t)\hat{B}_t + \int \tau_w(w, z)wzd\mathfrak{M}_t \\ 
+        &- \ell\mathfrak{M}(\text{retiring with lumpsum}) - p\mathfrak{M}(\text{retired with monthly})\bigg]dt.
+    \end{split}
+\end{equation}
+The pension benefit and the pension taxes stop when the fund 
+balance hits zero. In other words, after $\hat{B}_t$ reaches 
+zero, the $\tau$, $\ell$ and $p$ are cut to zero for the rest 
+generations.
+
+\subsection{Equilibrium}
+Given the initial distribution $\mathfrak{M}_0(da,ds,dz,dR)$,  
+pension fund balance $\hat{B}_0$, the recursive equilibrium 
+consists of optimal consumption policy path $c_t$, 
+the optimal retirement policy $R_t$, the price paths $\set{r_t, w_t}$, 
+the fund balance path $\hat{B}_t$ and the distribution 
+$\mathfrak{M}_t\in\mathcal{P}(\R_+\times [0,T]\times \mathcal{Z})$ such that 
+\begin{thmenum}
+    \item Given the prices $r_t, w_t$ and $\hat{B}_t$, the optimal 
+    consumption policies and the retirement policies solves the 
+    individuals optimization problem. 
+    \item Given the prices $r_t$ and $w_t$, the firms optimize.
+    \item The prices are such that the goods market and the 
+    labor market clear: 
+    \begin{align}
+        \hat{Y}_t &= \int c_t d\mathfrak{M}  \\ 
+        \hat{L}_t &= \int \exp(\bar{z}(s) + z)\one\set{\text{working}}d\mathfrak{M}. 
+    \end{align}
+    \item The individuals optimal retirement decision $R_t$ is 
+    consistent with the fund balance path $\hat{B}_t$. 
+    \item The distribution solves the corresponding 
+    Kolmogorov forward equation.
+\end{thmenum}
+
+ 
+
+
+
+\bibliographystyle{apacite}
+\bibliography{pension}
+
+\end{document}
