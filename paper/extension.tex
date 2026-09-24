@@ -318,7 +318,7 @@ and the bequest motive follows \cite{denardi2004} and
     b(a) = \theta_b\frac{(a + \kappa)^{1-\gamma}}{1-\gamma}.
 \end{equation}
 We assume that the transfer $\tr_t$ is a flow from the bequest, 
-which is assumed to be distributed uniformly to all agents alive. 
+which is assumed to be distributed uniformly to all the agents alive. 
 
 For a retiree participating the monthly plan, the consumption 
 policy solves 
@@ -332,8 +332,9 @@ subject to
 \end{align}
 
 \paragraph{Workers.}
-Given interest rate $r_t$ and wage $w_t$, the households consume 
-optimally to maximize
+After aging $T_w$, the individuals can start to work. 
+Given interest rate $r_t$ and wage $w_t$, the households 
+consume optimally to maximize
 \begin{equation}
     V_t^w = \E_t\sbrc{\int_t^Te^{-\int_t^s \rho + m(x)dx}\sbrc{u(c_s) - \psi(s) + m(s)b(a_s)}ds}
 \end{equation}
@@ -346,7 +347,9 @@ subject to
 where $\bar{z}(t)$ is the earning profile and $z_t\in\mathcal{Z} 
 = \set{z_0,\ldots,z_k}$ follows a continuous time Markov chain with 
 intensity matrix $\Lambda$. We take $z_0 = -\infty$ for the unemployment 
-state. The $\psi$ is the disutility to work. The pension tax $\tau$ 
+state. The initial $z$ at $T_w$ is drawn randomly from the 
+invariant distribution associated with $\Lambda$. The 
+$\psi$ is the disutility to work. The pension tax $\tau$ 
 is of the form 
 \begin{equation}
     \tau(y) = \min\set{\tau_0y, \tau_1}
@@ -360,6 +363,10 @@ $[\underline{T_r}, \overline{T_r}]$. The retirement status
     R_t\in\set{\text{not to retire}, \text{retire with lumpsum}, \text{retire with pension}}.
 \end{equation} 
 The retirees cannot return to work.
+
+\paragraph{Youngs.}
+The youngs are born with zero asset and cannot work before $T_w$. 
+They are assumed to be hand to mouth so $c_t = \tr_t$. 
 
 \subsection{Firms}
 The production function is given by 
