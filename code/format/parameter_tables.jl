@@ -14,7 +14,7 @@ Internal targets describe the moments matched by `loss` in
 series jointly. Only fields belonging to the selected panel are required.
 
 ```julia
-include("parameter_tables.jl")
+include("code/format/parameter_tables.jl")
 using .ParameterTables
 write_parameter_table(para; panel = :A, output_path = "table/parameters_A.tex")
 write_parameter_table(para; panel = :B, output_path = "table/parameters_B.tex")

@@ -3,14 +3,14 @@
 The implementation follows `paper/extension.tex`. Run the scenarios separately:
 
 ```sh
-julia code/extension_collapsed.jl
-julia code/extension_continued.jl
+julia code/solver/extension_collapsed.jl
+julia code/solver/extension_continued.jl
 ```
 
-`code/extension.jl` runs the continued scenario for compatibility. Each entry point solves its equilibrium and writes nine SVGs under `figure/collapsed_pension/` or `figure/continued_pension/`. Including a solver defines functions without starting a solve or writing figures. Both scenarios share function names, so use separate Julia sessions or modules.
+`code/solver/extension.jl` runs the continued scenario for compatibility. Each entry point solves its equilibrium and writes nine SVGs under `figure/collapsed_pension/` or `figure/continued_pension/`. Including a solver defines functions without starting a solve or writing figures. Both scenarios share function names, so use separate Julia sessions or modules.
 
 ```julia
-include("code/extension_continued.jl")
+include("code/solver/extension_continued.jl")
 mp = model()
 res = solve_stationary_equilibrium(mp)
 paths = plot_stationary_equilibrium(res, mp)
@@ -154,7 +154,7 @@ Distribution figures aggregate the monthly-benefit axis and display no-benefit r
 Run the reproducible numerical checks with:
 
 ```sh
-julia code/extension_checks.jl
+julia code/solver/extension_checks.jl
 ```
 
 They cover benefit-window endpoints, age-specific asset jumps on two retirement-grid refinements, fixed monthly cohorts through age 80, permanent ineligibility after retirement at 59 or 71, pension payment accounting, population mass conservation, market clearing, and equality with the collapsed economy when continued-system benefits are zero.

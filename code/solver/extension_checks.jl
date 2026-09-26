@@ -1,11 +1,11 @@
-# Run from the repository root: julia code/extension_checks.jl
+# Run from the repository root: julia code/solver/extension_checks.jl
 using Test, LinearAlgebra
 
 module CollapsedExtension
-include("extension_collapsed.jl")
+include(joinpath(@__DIR__, "extension_collapsed.jl"))
 end
 module ContinuedExtension
-include("extension_continued.jl")
+include(joinpath(@__DIR__, "extension_continued.jl"))
 end
 
 const CE = ContinuedExtension

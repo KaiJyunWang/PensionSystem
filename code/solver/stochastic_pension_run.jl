@@ -34,7 +34,9 @@ set_theme!(
     Colorbar = (labelsize = 20, ticklabelsize = 16,),
 )
 
-include("parameter_tables.jl")
+const PROJECT_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
+
+include(joinpath(@__DIR__, "..", "format", "parameter_tables.jl"))
 using .ParameterTables: write_parameter_table
 
 function model(; b = 0.00462, m = 0.06, T = 61, r = 0.093, p = 2.449, Tw = 25, Tm = 60,
@@ -231,7 +233,7 @@ end
 
 # Estimation with real data 
 begin
-    df = CSV.read("data/labor_insurance.csv", DataFrame)
+    df = CSV.read(joinpath(PROJECT_ROOT, "data", "labor_insurance.csv"), DataFrame)
     df[!, :date] = Date.(String.(df.date), dateformat"yyyy-mm")
 
     df[!, :B] = df.fund_level_ntd ./ df.taiwan_registered_population ./ 100_000

@@ -1,8 +1,10 @@
 using Interpolations, Plots, Roots
 
-raw_survival = parse.(Float64, readlines("data/survival_curve.txt"))
-pop_2009 = parse.(Float64, readlines("data/age_dist_2009.txt"))
-birth_counts = parse.(Float64, readlines("data/birth_counts.txt"))
+const PROJECT_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
+
+raw_survival = parse.(Float64, readlines(joinpath(PROJECT_ROOT, "data", "survival_curve.txt")))
+pop_2009 = parse.(Float64, readlines(joinpath(PROJECT_ROOT, "data", "age_dist_2009.txt")))
+birth_counts = parse.(Float64, readlines(joinpath(PROJECT_ROOT, "data", "birth_counts.txt")))
 
 # normalize initial mass to 1
 raw_survival = raw_survival ./ raw_survival[1]

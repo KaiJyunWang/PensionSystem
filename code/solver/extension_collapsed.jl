@@ -8,7 +8,7 @@ using CairoMakie
 include(joinpath(@__DIR__, "extension_benefits.jl"))
 
 # Monetary unit: NT$1,000,000. Ages and rates are measured in years.
-const raw_mortality = parse.(Float64, readlines(joinpath(@__DIR__, "..", "data", "mortality.txt")))
+const raw_mortality = parse.(Float64, readlines(joinpath(@__DIR__, "..", "..", "data", "mortality.txt")))
 const log_mortality = extrapolate(
     interpolate((0:length(raw_mortality)-1,), log.(raw_mortality), Gridded(Linear())), Line())
 
@@ -600,7 +600,7 @@ function wage_distribution_data(res, mp; n_bins = 50)
 end
 
 """
-    plot_stationary_equilibrium(res, mp; output_dir=joinpath(@__DIR__, "..", "figure", "collapsed_pension"))
+    plot_stationary_equilibrium(res, mp; output_dir=joinpath(@__DIR__, "..", "..", "figure", "collapsed_pension"))
 
 Save value, consumption, saving, retirement, stationary-distribution, and
 asset-group comparison SVGs. Each value or policy panel shows one of ages
@@ -610,7 +610,7 @@ according to the equilibrium retirement decision, including at age 80. Further S
 retirement-age distribution, retired percentage by age, and wage distribution.
 """
 function plot_stationary_equilibrium(res, mp;
-        output_dir = normpath(joinpath(@__DIR__, "..", "figure", "collapsed_pension")))
+        output_dir = normpath(joinpath(@__DIR__, "..", "..", "figure", "collapsed_pension")))
     mkpath(output_dir)
     paths = (
         values = joinpath(output_dir, "extension_value_functions.svg"),
