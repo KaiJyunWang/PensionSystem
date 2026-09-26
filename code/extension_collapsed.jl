@@ -5,6 +5,8 @@ using Interpolations
 using OrdinaryDiffEq, SteadyStateDiffEq
 using CairoMakie
 
+include(joinpath(@__DIR__, "extension_benefits.jl"))
+
 # Monetary unit: NT$1,000,000. Ages and rates are measured in years.
 const raw_mortality = parse.(Float64, readlines(joinpath(@__DIR__, "..", "data", "mortality.txt")))
 const log_mortality = extrapolate(
@@ -15,14 +17,15 @@ function model(; b = 0.00462, γ = 2.0, ρ = 0.01,
     ψ = s -> max(0.0, s - 60),
     τ0 = 0.12,
     p = 0.256, l = 2.061,
-    Tw = 20, Tr_lb = 60, Tr_ub = 70,
+    Tw = 20, Tr = 65, Tr_lb = Tr - 5, Tr_ub = Tr + 5,
+    benefit_adjustment = 0.04,
     m = s -> exp(log_mortality(s)), T = 100,
     z_bar = s -> -1.656 + 0.052s - 0.000573s^2,
     z_vals = [-Inf, -0.451, 0.197, 0.0, 0.232, 0.653],
     Λ = Tridiagonal(fill(0.1, 5), [-0.2, -0.3, -0.3, -0.3, -0.3, -0.1], fill(0.2, 5)))
 
     τ = y -> τ0 * min(y, 0.550)
-    return (; b, γ, θb, κ, ρ, A, α, ψ, τ, p, l, Tw, Tr_lb, Tr_ub,
+    return (; b, γ, θb, κ, ρ, A, α, ψ, τ, p, l, Tw, Tr, Tr_lb, Tr_ub, benefit_adjustment,
         m, T, z_bar, z_vals, Λ)
 end
 
@@ -210,8 +213,13 @@ function solve_age_hjb(next, assets, ds, age, r, income, mp, Q;
                 (retired ? 0.0 : mp.ψ(age)) for j in 1:na, z in 1:nz]
         rhs = vec(flow) .+ vec(next)./ds
         M = (1/ds + mp.ρ + mortal)*sparse(I, na*nz, na*nz) - G
+        if retirement_value !== nothing
+            outside = vec(repeat(retirement_value, 1, nz))
+            active = vec(V) .- outside .<= ds.*(M*vec(V) .- rhs)
+            M = spdiagm(0 => Float64.(.!active))*M + spdiagm(0 => Float64.(active))
+            rhs = ifelse.(active, outside, rhs)
+        end
         candidate = reshape(sparse_system_solve(M, rhs, backend), na, nz)
-        retirement_value === nothing || (candidate .= max.(candidate, retirement_value))
         gap = maximum(abs, candidate .- V)
         V = candidate
         gap < policy_tol && return V
@@ -233,13 +241,9 @@ function backward_policies(mp, ages, assets, r, wage, transfer, Q;
         VR[:, i] .= vec(solve_age_hjb(reshape(VR[:, i+1], na, 1), assets,
             ds, ages[i], r, retired_income, mp, Q; retired = true,
             max_policy_iter, policy_tol, backend))
-        if ages[i] >= mp.Tr_ub
-            VW[:, :, i] .= VR[:, i]
-            continue
-        end
         earnings = wage*exp(mp.z_bar(ages[i])) .* exp.(mp.z_vals)
         worker_income = repeat(reshape(earnings .+ transfer, 1, nz), na, 1)
-        outside = ages[i] >= mp.Tr_lb ? reshape(VR[:, i], na, 1) : nothing
+        outside = ages[i] >= mp.Tw ? reshape(VR[:, i], na, 1) : nothing
         VW[:, :, i] .= solve_age_hjb(VW[:, :, i+1], assets, ds,
             ages[i], r, worker_income, mp, Q; retirement_value = outside,
             max_policy_iter, policy_tol, backend)
@@ -259,18 +263,11 @@ function forward_distribution(mp, ages, assets, population, VR, VW,
         age = ages[i]
         wmass = @view workers[:, :, i]
         rmass = @view retirees[:, i]
-        if age >= mp.Tr_lb
-            if age >= mp.Tr_ub
-                rmass .+= vec(sum(wmass, dims = 2))
-                wmass .= 0
-            else
-                switch = VW[:, :, i] .<= reshape(VR[:, i], na, 1) .+ 1e-9
-                for z in 1:nz, j in 1:na
-                    if switch[j, z]
-                        rmass[j] += wmass[j, z]
-                        wmass[j, z] = 0.0
-                    end
-                end
+        switch = VW[:, :, i] .<= reshape(VR[:, i], na, 1) .+ 1e-9
+        for z in 1:nz, j in 1:na
+            if switch[j, z]
+                rmass[j] += wmass[j, z]
+                wmass[j, z] = 0.0
             end
         end
         mass_weight = population.weights[i]*population.density[i]
@@ -285,7 +282,7 @@ function forward_distribution(mp, ages, assets, population, VR, VW,
         GR = asset_generator(rd, assets)
         retirees[:, i+1] .= sparse_system_solve(
             sparse(I, na, na) - ds*transpose(GR), rmass, backend)
-        if age < mp.Tr_ub
+        if age < mp.T
             earnings = wage*exp(mp.z_bar(age)) .* exp.(mp.z_vals)
             income = repeat(reshape(earnings .+ transfer, 1, nz), na, 1)
             _, wd = consumption_policy(VW[:, :, i], assets, r, income, mp.γ)
@@ -387,8 +384,7 @@ function solve_stationary_equilibrium(mp; n_age = 201,
     a_max > 0 && capital_labor_guess > 0 && transfer_guess > 0 ||
         throw(ArgumentError("asset bound and initial guesses must be positive"))
     mp.γ > 0 && mp.ρ > 0 && mp.κ > 0 || throw(ArgumentError("γ, ρ, κ must be positive"))
-    0 <= mp.Tw <= mp.Tr_lb <= mp.Tr_ub < mp.T ||
-        throw(ArgumentError("retirement ages must lie between Tw and T"))
+    validate_retirement_settings(mp)
     ages = age_grid(mp, n_age, retirement_age_refinement)
     assets = asset_grid(n_assets, a_max, dense_asset_fraction, dense_grid_share)
     Q = productivity_generator(mp)
@@ -420,7 +416,7 @@ function solve_stationary_equilibrium(mp; n_age = 201,
     end
     sol = equilibrium_method === :dynamic ? nothing :
         broyden_equilibrium(residual_at, initial;
-            tol = max(abstol, reltol*maximum(abs, initial)))
+            tol = max(abstol, reltol))
     if sol === nothing || (sol.retcode !== :Success && equilibrium_method === :auto)
         start = sol === nothing ? initial : sol.u
         problem = SteadyStateProblem(equilibrium_drift!, start)
@@ -450,6 +446,8 @@ function solve_stationary_equilibrium(mp; n_age = 201,
         log(state.dist.bequest_flow/state.transfer)]
     return (; ages, assets, population, growth = population.η,
         interest = state.r, wage = state.wage, transfer = state.transfer,
+        tax_rate = 0.0, pension_tax = y -> 0.0,
+        pension_revenue = 0.0, pension_outlays = 0.0, pension_budget_residual = 0.0,
         capital = state.dist.K, labor = state.dist.L,
         capital_labor = state.kl, bequest_flow = state.dist.bequest_flow,
         upper_asset_mass = state.dist.upper_asset_mass,
@@ -457,7 +455,7 @@ function solve_stationary_equilibrium(mp; n_age = 201,
         asset_mass_above_dense,
         value_retired = state.VR, value_working = state.VW,
         workers = state.dist.workers, retirees = state.dist.retirees,
-        retirement = (reshape(ages .>= mp.Tr_lb, 1, 1, length(ages)) .&
+        retirement = (reshape(ages .>= mp.Tw, 1, 1, length(ages)) .&
             (state.VW .<= reshape(state.VR, length(assets), 1, length(ages)) .+ 1e-9)),
         residual, solution = sol, backend, equilibrium_evaluations = evaluations[])
 end
@@ -472,14 +470,14 @@ function stationary_policies(res, mp)
     retired_saving = fill(NaN, na, ns)
     for i in eachindex(res.ages)
         age = res.ages[i]
-        if age >= mp.Tr_lb
+        if age >= mp.Tw
             c, drift = consumption_policy(
                 reshape(res.value_retired[:, i], na, 1), res.assets,
                 res.interest, fill(res.transfer, na, 1), mp.γ)
             retired_consumption[:, i] .= vec(c)
             retired_saving[:, i] .= vec(drift)
         end
-        if mp.Tw <= age < mp.Tr_ub
+        if mp.Tw <= age < mp.T
             earnings = res.wage * exp(mp.z_bar(age)) .* exp.(mp.z_vals)
             income = repeat(reshape(earnings .+ res.transfer, 1, nz), na, 1)
             c, drift = consumption_policy(
@@ -507,8 +505,7 @@ function chosen_age_curve(res, worker_values, retired_values, z, age_index)
         retired_values[:, age_index], worker_values[:, z, age_index])
 end
 
-# Overlay the productivity-state curves in each age panel. After mandatory
-# retirement, productivity is irrelevant and the panel has one retired curve.
+# Overlay productivity-state curves and select retirement where it is optimal.
 function age_slice_figure(res, mp, worker_values, retired_values;
         title, ylabel, target_ages = (35.0, 50.0, 61.0, 80.0))
     age_indices = unique([argmin(abs.(res.ages .- target)) for target in target_ages
@@ -523,12 +520,11 @@ function age_slice_figure(res, mp, worker_values, retired_values;
     for (panel, age_index) in enumerate(age_indices)
         row, col = cld(panel, 2), mod1(panel, 2)
         age = res.ages[age_index]
-        status = age >= mp.Tr_ub ? " (retired)" :
-            age >= mp.Tr_lb ? " (retirement choice)" : ""
+        status = age < mp.T ? " (retirement choice)" : " (terminal age)"
         ax = Axis(fig[row, col],
             title = "Age $(round(age; digits = 1))$status",
             xlabel = "Assets (million NTD)", ylabel = ylabel)
-        if age < mp.Tr_ub
+        if age < mp.T
             first_worker_axis === nothing && (first_worker_axis = ax)
             for z in eachindex(mp.z_vals)
                 curve = chosen_age_curve(res, worker_values, retired_values,
@@ -552,14 +548,14 @@ end
 # mass at an age node is the mass newly retiring there. Population density
 # weights those events into the stationary cross-sectional retirement flow.
 function retirement_plot_data(res, mp)
-    indices = findall(s -> mp.Tr_lb <= s <= mp.Tr_ub, res.ages)
+    indices = findall(s -> mp.Tw <= s < mp.T, res.ages)
     retired_mass = vec(sum(res.retirees; dims = 1))
     worker_mass = [sum(res.workers[:, :, i]) for i in eachindex(res.ages)]
     new_retirees = [max(0.0, retired_mass[i] -
         (i == 1 ? 0.0 : retired_mass[i-1])) for i in indices]
     retirement_flow = new_retirees .* res.population.density[indices]
     total_flow = sum(retirement_flow)
-    total_flow > 0 || error("No retirement events in the retirement window")
+    total_flow > 0 || error("No retirement events before terminal age")
     retired_percentage = 100 .* retired_mass[indices] ./
         (retired_mass[indices] .+ worker_mass[indices])
     return (; ages = res.ages[indices],
@@ -609,9 +605,8 @@ end
 Save value, consumption, saving, retirement, stationary-distribution, and
 asset-group comparison SVGs. Each value or policy panel shows one of ages
 35, 50, 61, and 80, with productivity-state curves overlaid where applicable.
-At age 61, each curve selects the working or retired outcome at every asset
-according to the equilibrium retirement decision. Age 80 has one retired
-curve because productivity no longer applies. Further SVGs show the
+Each curve selects the working or retired outcome at every asset
+according to the equilibrium retirement decision, including at age 80. Further SVGs show the
 retirement-age distribution, retired percentage by age, and wage distribution.
 """
 function plot_stationary_equilibrium(res, mp;
@@ -648,8 +643,8 @@ function plot_stationary_equilibrium(res, mp;
         ylabel = "Saving (million NTD/year)")
     save(paths.saving, saving_fig)
 
-    # The retirement map is shown only in the eligibility window.
-    retirement_ages = findall(s -> mp.Tr_lb <= s <= mp.Tr_ub, res.ages)
+    # Retirement decisions are shown over all adult ages, including ineligible ages.
+    retirement_ages = findall(s -> mp.Tw <= s < mp.T, res.ages)
     retirement_fig = Figure(size = (1500, 750))
     decision_plot = nothing
     for z in 1:nz
@@ -657,6 +652,7 @@ function plot_stationary_equilibrium(res, mp;
         ax = Axis(retirement_fig[row, col],
             title = productivity_label(mp.z_vals[z]),
             xlabel = "Age", ylabel = "Assets (million NTD)")
+        xlims!(ax, 60, 70)
         decision_plot = heatmap!(ax, res.ages[retirement_ages], res.assets,
             permutedims(Float64.(res.retirement[:, z, retirement_ages]));
             colormap = [:steelblue, :tomato], colorrange = (-0.5, 1.5), rasterize = 2)
@@ -677,7 +673,7 @@ function plot_stationary_equilibrium(res, mp;
     barplot!(age_ax, retirement_stats.ages,
         100 .* retirement_stats.retirement_age_probability;
         width = bar_width, color = :darkorange)
-    xlims!(age_ax, mp.Tr_lb - 0.2, mp.Tr_ub + 0.2)
+    xlims!(age_ax, 60, 70)
     save(paths.retirement_age_distribution, retirement_age_fig)
 
     retired_share_fig = Figure(size = (1000, 520))
@@ -687,7 +683,7 @@ function plot_stationary_equilibrium(res, mp;
     lines!(share_ax, retirement_stats.ages,
         retirement_stats.retired_percentage;
         color = :navy, linewidth = 3)
-    xlims!(share_ax, mp.Tr_lb, mp.Tr_ub)
+    xlims!(share_ax, 60, 70)
     ylims!(share_ax, 0, 100)
     save(paths.retired_percentage, retired_share_fig)
 
@@ -778,6 +774,8 @@ function plot_stationary_equilibrium(res, mp;
     return paths
 end
 
-mp = model()
-res = solve_stationary_equilibrium(mp)
-figure_paths = plot_stationary_equilibrium(res, mp)
+if abspath(PROGRAM_FILE) == @__FILE__
+    mp = model()
+    res = solve_stationary_equilibrium(mp)
+    figure_paths = plot_stationary_equilibrium(res, mp)
+end
